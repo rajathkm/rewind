@@ -68,6 +68,35 @@ export async function GET(
       (state: { user_id: string }) => state.user_id === userId
     );
 
+    // Transform source to camelCase
+    const sourceData = content.content_sources;
+    const source = sourceData ? {
+      id: sourceData.id,
+      sourceType: sourceData.source_type,
+      title: sourceData.title,
+      description: sourceData.description,
+      imageUrl: sourceData.image_url,
+      author: sourceData.author,
+    } : null;
+
+    // Transform summary to camelCase if exists
+    const summaryData = content.summaries?.[0];
+    const summary = summaryData ? {
+      id: summaryData.id,
+      summaryType: summaryData.summary_type,
+      headline: summaryData.headline,
+      tldr: summaryData.tldr,
+      fullSummary: summaryData.full_summary,
+      keyPoints: summaryData.key_points || [],
+      keyTakeaways: summaryData.key_takeaways || [],
+      relatedIdeas: summaryData.related_ideas || [],
+      alliedTrivia: summaryData.allied_trivia || [],
+      speakers: summaryData.speakers || [],
+      modelUsed: summaryData.model_used,
+      qualityScore: summaryData.quality_score,
+      createdAt: summaryData.created_at,
+    } : null;
+
     const response = {
       id: content.id,
       contentType: content.content_type,
@@ -86,8 +115,8 @@ export async function GET(
       wordCount: content.word_count,
       readingTimeMinutes: content.reading_time_minutes,
       categories: content.categories,
-      source: content.content_sources,
-      summary: content.summaries?.[0] || null,
+      source,
+      summary,
       isRead: userState?.is_read || false,
       isSaved: userState?.is_saved || false,
       isArchived: userState?.is_archived || false,
