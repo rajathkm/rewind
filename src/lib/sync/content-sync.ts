@@ -9,7 +9,23 @@ function extractContent(content: string, type: "html" | "text") {
   return { text: extractFromText(content).content };
 }
 
-const parser = new Parser({
+// Custom feed item interface
+interface CustomFeedItem {
+  duration?: string;
+  itunesImage?: { href?: string } | string;
+  itunesAuthor?: string;
+  itunesSummary?: string;
+  contentEncoded?: string;
+  mediaContent?: { url?: string };
+}
+
+// Custom feed interface
+interface CustomFeed {
+  itunesImage?: { href?: string } | string;
+  itunesAuthor?: string;
+}
+
+const parser = new Parser<CustomFeed, CustomFeedItem>({
   timeout: 30000,
   maxRedirects: 5,
   headers: {
@@ -18,17 +34,16 @@ const parser = new Parser({
   },
   customFields: {
     item: [
-      ["enclosure", "enclosure"],
       ["itunes:duration", "duration"],
       ["itunes:image", "itunesImage"],
       ["itunes:author", "itunesAuthor"],
       ["itunes:summary", "itunesSummary"],
       ["content:encoded", "contentEncoded"],
       ["media:content", "mediaContent"],
-    ],
+    ] as const,
     feed: [
-      ["itunes:image", "itunesImage"],
-      ["itunes:author", "itunesAuthor"],
+      "itunesImage",
+      "itunesAuthor",
     ],
   },
 });
@@ -202,8 +217,10 @@ interface ProcessedItem {
   id?: string;
 }
 
+type ExtendedItem = Parser.Item & CustomFeedItem;
+
 async function processItem(
-  item: Parser.Item,
+  item: ExtendedItem,
   source: { id: string; source_type: string },
   supabase: ReturnType<typeof createAdminClient>
 ): Promise<ProcessedItem> {
@@ -236,7 +253,7 @@ async function processItem(
     external_id: externalId,
     content_type: contentType,
     title: item.title || "Untitled",
-    author: item.creator || item.itunesAuthor || item.author || null,
+    author: item.creator || item.itunesAuthor || null,
     url: item.link || null,
     image_url: extractImageUrl(item),
     published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
@@ -286,7 +303,7 @@ async function processItem(
 }
 
 function determineContentType(
-  item: Parser.Item,
+  item: ExtendedItem,
   sourceType: string
 ): "article" | "podcast_episode" | "newsletter" {
   // Check for audio enclosure (podcast)
@@ -301,7 +318,7 @@ function determineContentType(
 }
 
 function parseAudioInfo(
-  item: Parser.Item
+  item: ExtendedItem
 ): { url: string; duration?: number; fileSize?: number } | null {
   const enclosure = item.enclosure;
   if (!enclosure?.url) return null;
@@ -337,10 +354,12 @@ function parseAudioInfo(
   };
 }
 
-function extractImageUrl(item: Parser.Item): string | null {
+function extractImageUrl(item: ExtendedItem): string | null {
   // Try various image sources
-  if (item.itunesImage?.href) return item.itunesImage.href;
-  if (typeof item.itunesImage === "string") return item.itunesImage;
+  if (item.itunesImage) {
+    if (typeof item.itunesImage === "string") return item.itunesImage;
+    if (item.itunesImage.href) return item.itunesImage.href;
+  }
   if (item.mediaContent?.url) return item.mediaContent.url;
 
   // Try to extract from content

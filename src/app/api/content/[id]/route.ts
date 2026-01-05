@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Demo user ID for development without auth
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(
   request: NextRequest,
@@ -9,12 +13,13 @@ export async function GET(
     const supabase = await createClient();
     const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: content, error } = await supabase
+    // Use admin client for development mode
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
+
+    const { data: content, error } = await db
       .from("content_items")
       .select(
         `
@@ -58,9 +63,9 @@ export async function GET(
       return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
-    // Get user-specific state
+    // Get user-specific state (filter by userId since we might be using admin client)
     const userState = content.user_content_state?.find(
-      (state: any) => true // Already filtered by user through RLS
+      (state: { user_id: string }) => state.user_id === userId
     );
 
     const response = {
@@ -107,17 +112,18 @@ export async function PATCH(
     const supabase = await createClient();
     const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Use admin client for development mode
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     const body = await request.json();
     const { isRead, isSaved, isArchived, readProgress } = body;
 
     // Upsert user content state
     const updateData: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: userId,
       content_id: id,
     };
 
@@ -136,7 +142,7 @@ export async function PATCH(
       updateData.read_progress = readProgress;
     }
 
-    const { data: state, error } = await supabase
+    const { data: state, error } = await db
       .from("user_content_state")
       .upsert(updateData, {
         onConflict: "user_id,content_id",

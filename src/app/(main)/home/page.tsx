@@ -149,33 +149,35 @@ async function RecentContentSection() {
 
         if (item.content_type === "podcast_episode") {
           return (
-            <PodcastCard
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              showName={source?.title || "Unknown"}
-              showImageUrl={item.image_url || source?.image_url}
-              duration={item.audio_duration_seconds}
-              publishedAt={item.published_at}
-              summary={summary?.tldr}
-              href={`/content/${item.id}`}
-            />
+            <ContentLink key={item.id} href={`/content/${item.id}`}>
+              <PodcastCard
+                id={item.id}
+                title={item.title}
+                sourceTitle={source?.title || "Unknown"}
+                sourceImageUrl={source?.image_url}
+                imageUrl={item.image_url}
+                durationSeconds={item.audio_duration_seconds}
+                publishedAt={item.published_at}
+                hasSummary={!!summary}
+                description={summary?.tldr}
+              />
+            </ContentLink>
           );
         }
 
         return (
-          <ArticleCard
-            key={item.id}
-            id={item.id}
-            title={item.title}
-            sourceName={source?.title || "Unknown"}
-            sourceImageUrl={source?.image_url}
-            imageUrl={item.image_url}
-            publishedAt={item.published_at}
-            summary={summary?.tldr}
-            contentType={item.content_type}
-            href={`/content/${item.id}`}
-          />
+          <ContentLink key={item.id} href={`/content/${item.id}`}>
+            <ArticleCard
+              id={item.id}
+              title={item.title}
+              sourceTitle={source?.title || "Unknown"}
+              sourceImageUrl={source?.image_url}
+              imageUrl={item.image_url}
+              publishedAt={item.published_at}
+              hasSummary={!!summary}
+              excerpt={summary?.tldr || item.excerpt}
+            />
+          </ContentLink>
         );
       })}
     </div>
@@ -236,16 +238,18 @@ async function ContinueListeningSection() {
           : 0;
 
         return (
-          <PodcastCard
-            key={content.id}
-            id={content.id}
-            title={content.title}
-            showName={content.source?.title || "Unknown"}
-            showImageUrl={content.image_url || content.source?.image_url}
-            duration={content.audio_duration_seconds}
-            progress={progress}
-            href={`/content/${content.id}`}
-          />
+          <ContentLink key={content.id} href={`/content/${content.id}`}>
+            <PodcastCard
+              id={content.id}
+              title={content.title}
+              sourceTitle={content.source?.title || "Unknown"}
+              sourceImageUrl={content.source?.image_url || undefined}
+              imageUrl={content.image_url || undefined}
+              durationSeconds={content.audio_duration_seconds || undefined}
+              playbackProgress={progress}
+              mediaUrl={content.audio_url || undefined}
+            />
+          </ContentLink>
         );
       })}
     </div>
@@ -351,5 +355,19 @@ function EmptyState({
         {actionLabel}
       </Link>
     </div>
+  );
+}
+
+function ContentLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className="block">
+      {children}
+    </Link>
   );
 }

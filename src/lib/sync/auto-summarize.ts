@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { summarize } from "@/lib/summarization/summarizer";
+import { summarizeContent } from "@/lib/summarization/summarizer";
 
 /**
  * Auto-summarize pending content items
@@ -66,28 +66,24 @@ export async function autoSummarizePendingContent(options: {
         .eq("id", item.id);
 
       // Generate summary
-      const startTime = Date.now();
-      const summary = await summarize(item.extracted_text, {
-        contentType: item.content_type as "article" | "podcast_episode" | "newsletter",
+      const contentType = item.content_type === "podcast_episode" ? "podcast" : "article";
+      const result = await summarizeContent(item.extracted_text, {
+        contentType,
         title: item.title,
       });
-
-      const processingTime = Date.now() - startTime;
 
       // Store summary
       const { error: insertError } = await supabase.from("summaries").insert({
         content_id: item.id,
-        headline: summary.headline,
-        tldr: summary.tldr,
-        full_summary: summary.fullSummary,
-        key_points: summary.keyPoints,
-        key_takeaways: summary.keyTakeaways,
-        related_ideas: summary.relatedIdeas,
-        trivia: summary.trivia,
-        podcast_speakers: summary.podcastSpeakers,
-        quality_score: summary.qualityScore,
-        processing_time_ms: processingTime,
-        tokens_used: summary.tokensUsed || 0,
+        headline: result.summary.headline,
+        tldr: result.summary.tldr,
+        full_summary: result.summary.fullSummary,
+        key_points: result.summary.keyPoints,
+        key_takeaways: result.summary.keyTakeaways,
+        related_ideas: result.summary.relatedIdeas,
+        allied_trivia: result.summary.alliedTrivia,
+        processing_time_ms: result.processingTimeMs,
+        tokens_used: result.tokensUsed,
         model_used: process.env.OPENAI_MODEL || "gpt-4o",
       });
 
