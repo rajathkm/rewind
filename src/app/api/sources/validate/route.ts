@@ -100,6 +100,53 @@ export async function POST(request: NextRequest) {
 }
 
 async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
+  const urlObj = new URL(url);
+
+  // First, try common feed URL patterns (works for Substack, WordPress, etc.)
+  const commonFeedPaths = [
+    "/feed",
+    "/rss",
+    "/feed.xml",
+    "/rss.xml",
+    "/atom.xml",
+    "/feeds/posts/default", // Blogger
+    "/?feed=rss2", // WordPress
+  ];
+
+  for (const path of commonFeedPaths) {
+    const feedUrl = path.startsWith("?")
+      ? `${urlObj.origin}${urlObj.pathname}${path}`
+      : `${urlObj.origin}${path}`;
+
+    try {
+      const feed = await parser.parseURL(feedUrl);
+      if (feed && feed.items && feed.items.length > 0) {
+        const hasPodcastItems = feed.items.some(
+          (item) => item.enclosure?.type?.includes("audio")
+        );
+
+        return {
+          isValid: true,
+          sourceType: hasPodcastItems ? "podcast" : "rss",
+          title: feed.title || "Untitled Feed",
+          description: feed.description,
+          author: (feed as any)["itunes:author"] || (feed as any).creator,
+          imageUrl:
+            (feed as any)["itunes:image"]?.href ||
+            (feed.image as any)?.url ||
+            undefined,
+          feedUrl,
+          websiteUrl: url,
+          itemCount: feed.items.length,
+          lastPublished: feed.items[0]?.pubDate,
+        };
+      }
+    } catch {
+      // Continue to next pattern
+    }
+  }
+
+  // Then try to discover from HTML link tags
   try {
     const response = await fetch(url, {
       headers: {
@@ -128,10 +175,8 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
 
         // Handle relative URLs
         if (feedUrl.startsWith("/")) {
-          const urlObj = new URL(url);
           feedUrl = `${urlObj.origin}${feedUrl}`;
         } else if (!feedUrl.startsWith("http")) {
-          const urlObj = new URL(url);
           feedUrl = `${urlObj.origin}/${feedUrl}`;
         }
 
