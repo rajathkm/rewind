@@ -5,13 +5,13 @@ import { z } from "zod";
 
 const createSourceSchema = z.object({
   sourceType: z.enum(["newsletter", "rss", "podcast"]),
-  feedUrl: z.string().url().optional(),
-  newsletterEmail: z.string().email().optional(),
-  websiteUrl: z.string().url().optional(),
+  feedUrl: z.string().url().optional().or(z.literal("")),
+  newsletterEmail: z.string().email().optional().or(z.literal("")),
+  websiteUrl: z.string().url().optional().or(z.literal("")),
   title: z.string().min(1).max(255),
   description: z.string().optional(),
   author: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
   categories: z.array(z.string()).default([]),
 });
 
@@ -92,18 +92,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create new source
+    // Create new source (convert empty strings to null)
     const { data: newSource, error } = await db
       .from("content_sources")
       .insert({
         source_type: validatedData.sourceType,
-        feed_url: validatedData.feedUrl,
-        newsletter_email: validatedData.newsletterEmail,
-        website_url: validatedData.websiteUrl,
+        feed_url: validatedData.feedUrl || null,
+        newsletter_email: validatedData.newsletterEmail || null,
+        website_url: validatedData.websiteUrl || null,
         title: validatedData.title,
-        description: validatedData.description,
-        author: validatedData.author,
-        image_url: validatedData.imageUrl,
+        description: validatedData.description || null,
+        author: validatedData.author || null,
+        image_url: validatedData.imageUrl || null,
         categories: validatedData.categories,
       })
       .select()
