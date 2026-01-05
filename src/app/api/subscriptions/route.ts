@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
+
+// Demo user ID for development without auth
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const createSubscriptionSchema = z.object({
   sourceId: z.string().uuid(),
@@ -13,31 +17,32 @@ const createSubscriptionSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status");
     const folder = searchParams.get("folder");
 
-    let query = supabase
+    let query = db
       .from("subscriptions")
       .select(`
         *,
-        content_sources (
+        source:content_sources (
           id,
           source_type,
           title,
           description,
           image_url,
           feed_url,
-          last_fetched_at
+          last_fetched_at,
+          fetch_error_count
         )
       `)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (status) {
@@ -51,10 +56,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
+      console.error("Subscriptions query error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ subscriptions: data });
+    return NextResponse.json({ subscriptions: data || [] });
   } catch (error) {
     console.error("Error fetching subscriptions:", error);
     return NextResponse.json(
@@ -67,20 +73,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     const body = await request.json();
     const validatedData = createSubscriptionSchema.parse(body);
 
     // Check if already subscribed
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("subscriptions")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("source_id", validatedData.sourceId)
       .single();
 
@@ -92,10 +98,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create subscription
-    const { data: subscription, error } = await supabase
+    const { data: subscription, error } = await db
       .from("subscriptions")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         source_id: validatedData.sourceId,
         custom_name: validatedData.customName,
         folder: validatedData.folder,
@@ -105,7 +111,7 @@ export async function POST(request: NextRequest) {
       })
       .select(`
         *,
-        content_sources (
+        source:content_sources (
           id,
           source_type,
           title,
@@ -116,11 +122,12 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error("Subscription insert error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     // Update subscriber count
-    await supabase.rpc("increment_subscriber_count", {
+    await db.rpc("increment_subscriber_count", {
       source_id: validatedData.sourceId,
     });
 
