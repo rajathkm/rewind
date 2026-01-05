@@ -145,8 +145,13 @@ export default function SubscriptionsPage() {
 
         const sourceData = await sourceRes.json();
 
+        if (!sourceRes.ok) {
+          alert(sourceData.error || "Failed to create source");
+          return;
+        }
+
         if (sourceData.source) {
-          await fetch("/api/subscriptions", {
+          const subRes = await fetch("/api/subscriptions", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -154,6 +159,13 @@ export default function SubscriptionsPage() {
               autoSummarize: true,
             }),
           });
+
+          const subData = await subRes.json();
+          if (!subRes.ok && subRes.status !== 409) {
+            // 409 = already subscribed, which is fine
+            alert(subData.error || "Failed to subscribe to source");
+            return;
+          }
 
           // Trigger initial sync for this source
           triggerSync(sourceData.source.id);

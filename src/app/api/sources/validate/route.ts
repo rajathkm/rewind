@@ -2,11 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 
 const parser = new Parser({
+  timeout: 10000, // 10 second timeout
   customFields: {
     feed: ["image", "itunes:image", "itunes:author"],
     item: ["itunes:duration", "enclosure", "itunes:image"],
   },
 });
+
+// Helper to parse feed with timeout
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function parseWithTimeout(url: string, timeoutMs = 8000): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    // First fetch the feed content
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Rewind/1.0 (RSS Feed Reader)",
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const text = await response.text();
+    clearTimeout(timeoutId);
+
+    // Parse the fetched content
+    return await parser.parseString(text);
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
 
 interface ValidatedFeed {
   isValid: boolean;
@@ -50,12 +82,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to fetch and parse the feed
+    console.log(`[Validate] Attempting to parse URL: ${feedUrl}`);
     try {
-      const feed = await parser.parseURL(feedUrl);
+      const feed = await parseWithTimeout(feedUrl);
+      console.log(`[Validate] Successfully parsed feed: ${feed.title}`);
 
       // Determine if it's a podcast by checking for audio enclosures
       const hasPodcastItems = feed.items.some(
-        (item) => item.enclosure?.type?.includes("audio")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (item: any) => item.enclosure?.type?.includes("audio")
       );
 
       const result: ValidatedFeed = {
@@ -76,12 +111,15 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(result);
     } catch (parseError) {
+      console.log(`[Validate] Direct parse failed, trying discovery for: ${feedUrl}`, parseError);
       // Feed parsing failed, try to find feed from HTML
       const feedFromHtml = await discoverFeedFromUrl(feedUrl);
       if (feedFromHtml) {
+        console.log(`[Validate] Discovered feed: ${feedFromHtml.feedUrl}`);
         return NextResponse.json(feedFromHtml);
       }
 
+      console.log(`[Validate] All discovery methods failed for: ${feedUrl}`);
       return NextResponse.json(
         {
           isValid: false,
@@ -118,11 +156,14 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
       ? `${urlObj.origin}${urlObj.pathname}${path}`
       : `${urlObj.origin}${path}`;
 
+    console.log(`[Validate] Trying common path: ${feedUrl}`);
     try {
-      const feed = await parser.parseURL(feedUrl);
+      const feed = await parseWithTimeout(feedUrl, 5000); // 5 second timeout per attempt
       if (feed && feed.items && feed.items.length > 0) {
+        console.log(`[Validate] Found feed at: ${feedUrl} with ${feed.items.length} items`);
         const hasPodcastItems = feed.items.some(
-          (item) => item.enclosure?.type?.includes("audio")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (item: any) => item.enclosure?.type?.includes("audio")
         );
 
         return {
@@ -141,7 +182,8 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
           lastPublished: feed.items[0]?.pubDate,
         };
       }
-    } catch {
+    } catch (err) {
+      console.log(`[Validate] Path ${path} failed:`, err instanceof Error ? err.message : err);
       // Continue to next pattern
     }
   }
@@ -181,12 +223,15 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
         }
 
         // Try to parse the discovered feed
+        console.log(`[Validate] Found link tag, trying: ${feedUrl}`);
         try {
-          const feed = await parser.parseURL(feedUrl);
+          const feed = await parseWithTimeout(feedUrl, 5000);
           const hasPodcastItems = feed.items.some(
-            (item) => item.enclosure?.type?.includes("audio")
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (item: any) => item.enclosure?.type?.includes("audio")
           );
 
+          console.log(`[Validate] Successfully parsed from link tag: ${feedUrl}`);
           return {
             isValid: true,
             sourceType: hasPodcastItems ? "podcast" : "rss",
@@ -202,7 +247,8 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
             itemCount: feed.items.length,
             lastPublished: feed.items[0]?.pubDate,
           };
-        } catch {
+        } catch (err) {
+          console.log(`[Validate] Link tag URL failed:`, err instanceof Error ? err.message : err);
           continue;
         }
       }
