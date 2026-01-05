@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Demo user ID for development without auth
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get("limit") || "50");
@@ -23,8 +27,8 @@ export async function GET(request: NextRequest) {
     const sourceId = searchParams.get("sourceId");
 
     // Use the database function for efficient feed retrieval
-    const { data: feedItems, error } = await supabase.rpc("get_user_feed", {
-      p_user_id: user.id,
+    const { data: feedItems, error } = await db.rpc("get_user_feed", {
+      p_user_id: userId,
       p_limit: limit,
       p_offset: offset,
       p_source_type: sourceType,
@@ -33,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       // Fall back to direct query if function doesn't exist
-      let query = supabase
+      let query = db
         .from("content_items")
         .select(
           `
@@ -58,10 +62,10 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + limit - 1);
 
       // Filter by user's subscriptions
-      const { data: userSubs } = await supabase
+      const { data: userSubs } = await db
         .from("subscriptions")
         .select("source_id")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("status", "active");
 
       if (userSubs && userSubs.length > 0) {
