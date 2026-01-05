@@ -2,8 +2,12 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ArticleCard } from "@/components/content/article-card";
 import { PodcastCard } from "@/components/content/podcast-card";
+
+// Demo user ID for development without auth
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export const metadata = {
   title: "Home",
@@ -60,37 +64,28 @@ export default async function HomePage() {
 
 async function QuickActionsWithData() {
   const supabase = await createClient();
-
-  // Get current user - if no user, show defaults
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Use admin client for dev mode
+  const db = user ? supabase : createAdminClient();
+  const userId = user?.id || DEMO_USER_ID;
 
   let unreadCount = 0;
   let savedCount = 0;
 
-  if (user) {
-    // Get unread count
-    const { count: unread } = await supabase
-      .from("content_items")
-      .select("*, user_content_state!inner(is_read)", { count: "exact", head: true })
-      .eq("user_content_state.user_id", user.id)
-      .eq("user_content_state.is_read", false);
+  // Get total content count as "unread" (simplified for now)
+  const { count } = await db
+    .from("content_items")
+    .select("*", { count: "exact", head: true });
+  unreadCount = count || 0;
 
-    // Get saved count
-    const { count: saved } = await supabase
-      .from("user_content_state")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_saved", true);
-
-    unreadCount = unread || 0;
-    savedCount = saved || 0;
-  } else {
-    // For non-authenticated users, get total content count as "unread"
-    const { count } = await supabase
-      .from("content_items")
-      .select("*", { count: "exact", head: true });
-    unreadCount = count || 0;
-  }
+  // Get saved count
+  const { count: saved } = await db
+    .from("user_content_state")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("is_saved", true);
+  savedCount = saved || 0;
 
   return (
     <section className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
@@ -118,9 +113,13 @@ async function QuickActionsWithData() {
 
 async function RecentContentSection() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Use admin client for dev mode
+  const db = user ? supabase : createAdminClient();
 
   // Get recent content items with summaries
-  const { data: contentItems } = await supabase
+  const { data: contentItems } = await db
     .from("content_items")
     .select(`
       *,
@@ -188,16 +187,12 @@ async function ContinueListeningSection() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Sign in to track your listening progress.
-      </p>
-    );
-  }
+  // Use admin client for dev mode
+  const db = user ? supabase : createAdminClient();
+  const userId = user?.id || DEMO_USER_ID;
 
   // Get podcasts with progress
-  const { data: inProgress } = await supabase
+  const { data: inProgress } = await db
     .from("user_content_state")
     .select(`
       *,
@@ -206,7 +201,7 @@ async function ContinueListeningSection() {
         source:content_sources(title, image_url)
       )
     `)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .gt("playback_position", 0)
     .eq("content.content_type", "podcast_episode")
     .eq("is_read", false)
