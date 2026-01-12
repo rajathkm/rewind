@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn, formatDate, formatDuration } from "@/lib/utils";
 import { useAudioStore } from "@/stores/audio-store";
+import { ProcessingStatusBadge, ProcessingStatus } from "./processing-status-badge";
 
 interface PodcastCardProps {
   id: string;
@@ -31,6 +32,8 @@ interface PodcastCardProps {
   isRead?: boolean;
   isSaved?: boolean;
   hasSummary?: boolean;
+  processingStatus?: ProcessingStatus;
+  retryCount?: number;
   isDownloaded?: boolean;
   playbackProgress?: number;
   variant?: "default" | "compact";
@@ -52,6 +55,8 @@ export function PodcastCard({
   isRead = false,
   isSaved = false,
   hasSummary = false,
+  processingStatus,
+  retryCount,
   isDownloaded = false,
   playbackProgress = 0,
   variant = "default",
@@ -122,6 +127,9 @@ export function PodcastCard({
                   {sourceTitle}
                 </span>
                 {hasSummary && <Sparkles className="w-3 h-3 text-primary" />}
+                {!hasSummary && processingStatus && processingStatus !== "completed" && (
+                  <ProcessingStatusBadge status={processingStatus} retryCount={retryCount} />
+                )}
               </div>
               <h3 className="font-medium text-sm line-clamp-1">{title}</h3>
               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
@@ -192,6 +200,9 @@ export function PodcastCard({
                   <Sparkles className="w-3 h-3 mr-1" />
                   Summary
                 </Badge>
+              )}
+              {!hasSummary && processingStatus && processingStatus !== "completed" && (
+                <ProcessingStatusBadge status={processingStatus} retryCount={retryCount} showLabel />
               )}
             </div>
             <h3 className="font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-1">

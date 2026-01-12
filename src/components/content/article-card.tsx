@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn, formatDate, formatReadingTime } from "@/lib/utils";
+import { ProcessingStatusBadge, ProcessingStatus } from "./processing-status-badge";
 
 interface ArticleCardProps {
   id: string;
@@ -25,6 +26,8 @@ interface ArticleCardProps {
   isRead?: boolean;
   isSaved?: boolean;
   hasSummary?: boolean;
+  processingStatus?: ProcessingStatus;
+  retryCount?: number;
   variant?: "default" | "compact" | "featured";
   onClick?: () => void;
   onSave?: () => void;
@@ -43,6 +46,8 @@ export function ArticleCard({
   isRead = false,
   isSaved = false,
   hasSummary = false,
+  processingStatus,
+  retryCount,
   variant = "default",
   onClick,
   onSave,
@@ -73,6 +78,9 @@ export function ArticleCard({
                 </span>
                 {hasSummary && (
                   <Sparkles className="w-3 h-3 text-primary" />
+                )}
+                {!hasSummary && processingStatus && processingStatus !== "completed" && (
+                  <ProcessingStatusBadge status={processingStatus} retryCount={retryCount} />
                 )}
               </div>
               <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
@@ -133,6 +141,9 @@ export function ArticleCard({
                     <Sparkles className="w-3 h-3 mr-1" />
                     Summary
                   </Badge>
+                )}
+                {!hasSummary && processingStatus && processingStatus !== "completed" && (
+                  <ProcessingStatusBadge status={processingStatus} retryCount={retryCount} showLabel />
                 )}
               </div>
               <h2 className="text-xl font-bold text-white line-clamp-2">
@@ -217,6 +228,9 @@ export function ArticleCard({
                   <Sparkles className="w-3 h-3 mr-1" />
                   AI Summary
                 </Badge>
+              )}
+              {!hasSummary && processingStatus && processingStatus !== "completed" && (
+                <ProcessingStatusBadge status={processingStatus} retryCount={retryCount} showLabel />
               )}
             </div>
             <h3 className="font-semibold text-base line-clamp-2 group-hover:text-primary transition-colors mb-2">
