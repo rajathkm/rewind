@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  MessageSquareOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,17 @@ interface YouTubeSubmitResult {
   };
 }
 
+interface NoCaptionsError {
+  noCaptions: true;
+  video: {
+    id: string;
+    title: string;
+    channelName: string;
+    thumbnailUrl: string;
+    durationSeconds?: number;
+  };
+}
+
 export function YouTubeSubmitForm({
   onSuccess,
   variant = "default",
@@ -45,6 +57,7 @@ export function YouTubeSubmitForm({
     success: boolean;
     data?: YouTubeSubmitResult;
     error?: string;
+    noCaptionsError?: NoCaptionsError;
   } | null>(null);
 
   const handleSubmit = useCallback(async () => {
@@ -73,6 +86,16 @@ export function YouTubeSubmitForm({
           },
         });
         onSuccess?.(data);
+      } else if (data.noCaptions) {
+        // Special handling for videos without captions
+        setResult({
+          success: false,
+          error: data.error,
+          noCaptionsError: {
+            noCaptions: true,
+            video: data.video,
+          },
+        });
       } else {
         setResult({
           success: false,
@@ -240,6 +263,7 @@ function StatusMessage({
     success: boolean;
     data?: YouTubeSubmitResult;
     error?: string;
+    noCaptionsError?: NoCaptionsError;
   };
   onReset: () => void;
   compact?: boolean;
@@ -255,9 +279,7 @@ function StatusMessage({
       >
         <CheckCircle className="w-4 h-4 flex-shrink-0" />
         <span className="flex-1">
-          {result.data?.hasTranscript
-            ? "Video submitted! Summary will be ready shortly."
-            : "Video added. Limited summary available (no captions found)."}
+          Video submitted! Summary will be ready shortly.
         </span>
         <div className="flex items-center gap-2">
           <a
@@ -269,6 +291,45 @@ function StatusMessage({
           <Button variant="ghost" size="sm" onClick={onReset}>
             Add Another
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Special UI for videos without captions
+  if (result.noCaptionsError) {
+    return (
+      <div
+        className={cn(
+          "text-sm",
+          compact ? "p-2" : "p-4",
+          "rounded-lg bg-amber-500/10 border border-amber-500/20"
+        )}
+      >
+        <div className="flex items-start gap-3">
+          <MessageSquareOff className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-2">
+            <div>
+              <p className="font-medium text-amber-700 dark:text-amber-400">
+                No captions available
+              </p>
+              <p className="text-muted-foreground mt-1">
+                This video doesn&apos;t have captions, which are required to generate a summary.
+              </p>
+            </div>
+            {result.noCaptionsError.video && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5">
+                <Youtube className="w-3 h-3 text-red-500" />
+                <span className="truncate">{result.noCaptionsError.video.title}</span>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Try a different video that has captions enabled.
+            </p>
+            <Button variant="outline" size="sm" onClick={onReset} className="mt-2">
+              Try Another Video
+            </Button>
+          </div>
         </div>
       </div>
     );
