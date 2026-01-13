@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@radix-ui/react-tabs";
 import { ArticleCard } from "./article-card";
 import { PodcastCard } from "./podcast-card";
+import { YouTubeCard } from "./youtube-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import {
   Newspaper,
   Headphones,
   Mail,
+  Youtube,
   LayoutGrid,
   List,
   Search,
@@ -22,12 +24,12 @@ import type { ProcessingStatus } from "./processing-status-badge";
 
 interface ContentItem {
   id: string;
-  contentType: "article" | "episode" | "newsletter_issue";
+  contentType: "article" | "episode" | "newsletter_issue" | "youtube_video";
   title: string;
   excerpt?: string;
   sourceId: string;
   sourceTitle: string;
-  sourceType: "newsletter" | "rss" | "podcast";
+  sourceType: "newsletter" | "rss" | "podcast" | "youtube";
   sourceImageUrl?: string;
   imageUrl?: string;
   url?: string;
@@ -42,6 +44,9 @@ interface ContentItem {
   retryCount?: number;
   isDownloaded?: boolean;
   playbackProgress?: number;
+  // YouTube-specific
+  youtubeVideoId?: string;
+  youtubeChannelName?: string;
 }
 
 interface ContentFeedProps {
@@ -67,7 +72,7 @@ export function ContentFeed({
   onDownload,
   onRefresh,
 }: ContentFeedProps) {
-  const [filter, setFilter] = useState<"all" | "articles" | "podcasts" | "newsletters">("all");
+  const [filter, setFilter] = useState<"all" | "articles" | "podcasts" | "newsletters" | "youtube">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -76,6 +81,7 @@ export function ContentFeed({
     if (filter === "articles" && item.sourceType !== "rss") return false;
     if (filter === "podcasts" && item.sourceType !== "podcast") return false;
     if (filter === "newsletters" && item.sourceType !== "newsletter") return false;
+    if (filter === "youtube" && item.contentType !== "youtube_video") return false;
 
     // Filter by search query
     if (searchQuery) {
@@ -92,6 +98,29 @@ export function ContentFeed({
 
   const renderItem = (item: ContentItem) => {
     const variant = viewMode === "grid" ? "default" : "compact";
+
+    if (item.contentType === "youtube_video") {
+      return (
+        <YouTubeCard
+          key={item.id}
+          id={item.id}
+          title={item.title}
+          channelName={item.youtubeChannelName || item.sourceTitle}
+          thumbnailUrl={item.imageUrl}
+          publishedAt={item.publishedAt}
+          durationSeconds={item.durationSeconds}
+          videoId={item.youtubeVideoId}
+          isRead={item.isRead}
+          isSaved={item.isSaved}
+          hasSummary={item.hasSummary}
+          processingStatus={item.processingStatus}
+          retryCount={item.retryCount}
+          variant={variant}
+          onClick={() => onItemClick?.(item)}
+          onSave={() => onSave?.(item)}
+        />
+      );
+    }
 
     if (item.sourceType === "podcast") {
       return (
@@ -211,6 +240,14 @@ export function ContentFeed({
         >
           <Headphones className="w-4 h-4 mr-1.5" />
           Podcasts
+        </Button>
+        <Button
+          variant={filter === "youtube" ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => setFilter("youtube")}
+        >
+          <Youtube className="w-4 h-4 mr-1.5" />
+          YouTube
         </Button>
         <Button
           variant={filter === "newsletters" ? "secondary" : "ghost"}

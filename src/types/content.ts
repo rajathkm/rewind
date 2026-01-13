@@ -3,7 +3,7 @@
  */
 
 // Source types
-export type ContentType = "article" | "newsletter" | "rss_post" | "podcast";
+export type ContentType = "article" | "newsletter" | "rss_post" | "podcast" | "youtube_video";
 export type ContentFormat = "html" | "markdown" | "plaintext" | "audio";
 export type SourceType = "rss" | "email" | "api" | "manual";
 
@@ -89,6 +89,12 @@ export interface ContentItem {
   readingTimeMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
+  // YouTube-specific fields
+  youtubeVideoId?: string;
+  youtubeChannelName?: string;
+  youtubeChannelId?: string;
+  youtubeThumbnailUrl?: string;
+  transcriptSource?: "auto" | "manual" | null;
 }
 
 // User's state for a content item (read, saved, etc.)

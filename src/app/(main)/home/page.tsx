@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ArticleCard } from "@/components/content/article-card";
 import { PodcastCard } from "@/components/content/podcast-card";
+import { YouTubeCard } from "@/components/content/youtube-card";
+import { YouTubeSubmitSection } from "./youtube-submit-section";
 
 // Demo user ID for development without auth
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -32,6 +34,9 @@ export default async function HomePage() {
       <Suspense fallback={<QuickActionsSkeleton />}>
         <QuickActionsWithData />
       </Suspense>
+
+      {/* YouTube Submit Section */}
+      <YouTubeSubmitSection />
 
       {/* Recent Content */}
       <section>
@@ -146,7 +151,25 @@ async function RecentContentSection() {
         const source = Array.isArray(item.source) ? item.source[0] : item.source;
         const summary = Array.isArray(item.summary) ? item.summary[0] : item.summary;
 
-        if (item.content_type === "podcast_episode") {
+        if (item.content_type === "youtube_video") {
+          return (
+            <ContentLink key={item.id} href={`/content/${item.id}`}>
+              <YouTubeCard
+                id={item.id}
+                title={item.title}
+                channelName={item.youtube_channel_name || source?.title || "Unknown"}
+                thumbnailUrl={item.youtube_thumbnail_url || item.image_url}
+                durationSeconds={item.duration_seconds}
+                publishedAt={item.published_at}
+                videoId={item.youtube_video_id}
+                hasSummary={!!summary}
+                processingStatus={item.processing_status}
+              />
+            </ContentLink>
+          );
+        }
+
+        if (item.content_type === "podcast_episode" || item.content_type === "episode") {
           return (
             <ContentLink key={item.id} href={`/content/${item.id}`}>
               <PodcastCard
@@ -155,7 +178,7 @@ async function RecentContentSection() {
                 sourceTitle={source?.title || "Unknown"}
                 sourceImageUrl={source?.image_url}
                 imageUrl={item.image_url}
-                durationSeconds={item.audio_duration_seconds}
+                durationSeconds={item.audio_duration_seconds || item.duration_seconds}
                 publishedAt={item.published_at}
                 hasSummary={!!summary}
                 description={summary?.tldr}
