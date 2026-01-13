@@ -109,11 +109,15 @@ export async function POST(
     // Get source type from the joined data
     const sourceType = (content.content_sources as any)?.source_type;
 
+    // YouTube videos should use podcast summarization to get speakers and timestamps
+    const isYouTubeVideo = content.content_type === "youtube_video";
+    const usePodcastFormat = sourceType === "podcast" || isYouTubeVideo;
+
     try {
       // Generate summary
       const result = await summarizeContent(textContent, {
         title: content.title,
-        contentType: sourceType === "podcast" ? "podcast" : "article",
+        contentType: usePodcastFormat ? "podcast" : "article",
         duration: content.duration_seconds,
       });
 

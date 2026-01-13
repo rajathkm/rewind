@@ -16,6 +16,8 @@ import {
   HelpCircle,
   Zap,
   Brain,
+  Clock,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SummaryOutput } from "@/lib/summarization/schema";
@@ -283,7 +285,7 @@ export function SummaryDisplay({
         </Card>
       )}
 
-      {/* Podcast-specific: Speakers */}
+      {/* Podcast/Video: Speakers */}
       {contentType === "podcast" && summary.speakers && summary.speakers.length > 0 && (
         <Card>
           <CardHeader
@@ -292,8 +294,11 @@ export function SummaryDisplay({
           >
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">
-                <MessageSquare className="w-4 h-4 text-indigo-500" />
+                <Users className="w-4 h-4 text-indigo-500" />
                 Speakers
+                <Badge variant="secondary" className="ml-2">
+                  {summary.speakers.length}
+                </Badge>
               </CardTitle>
               {expandedSections.has("speakers") ? (
                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -324,6 +329,50 @@ export function SummaryDisplay({
                       ))}
                     </ul>
                   )}
+                </div>
+              ))}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Podcast/Video: Timeline/Chapters */}
+      {contentType === "podcast" && summary.chapters && summary.chapters.length > 0 && (
+        <Card>
+          <CardHeader
+            className="cursor-pointer py-3"
+            onClick={() => toggleSection("chapters")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="w-4 h-4 text-emerald-500" />
+                Timeline
+                <Badge variant="secondary" className="ml-2">
+                  {summary.chapters.length}
+                </Badge>
+              </CardTitle>
+              {expandedSections.has("chapters") ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.has("chapters") && (
+            <CardContent className="pt-0 space-y-3">
+              {summary.chapters.map((chapter, index) => (
+                <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="flex-shrink-0 px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-sm font-mono">
+                    {chapter.timestamp}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{chapter.title}</p>
+                    {chapter.summary && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {chapter.summary}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </CardContent>

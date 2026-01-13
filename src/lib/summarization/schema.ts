@@ -26,6 +26,12 @@ export const speakerSchema = z.object({
   keyContributions: z.array(z.string()).default([]),
 });
 
+export const chapterSchema = z.object({
+  title: z.string(),
+  timestamp: z.string(),
+  summary: z.string().optional(),
+});
+
 export const summarySchema = z.object({
   headline: z.string().max(100),
   tldr: z.string().min(10),
@@ -36,12 +42,14 @@ export const summarySchema = z.object({
   alliedTrivia: z.array(triviaItemSchema).default([]),
   speakers: z.array(speakerSchema).optional(),
   topicsDiscussed: z.array(z.string()).optional(),
+  chapters: z.array(chapterSchema).optional(),
 });
 
 export type KeyTakeaway = z.infer<typeof keyTakeawaySchema>;
 export type RelatedIdea = z.infer<typeof relatedIdeaSchema>;
 export type TriviaItem = z.infer<typeof triviaItemSchema>;
 export type Speaker = z.infer<typeof speakerSchema>;
+export type Chapter = z.infer<typeof chapterSchema>;
 export type SummaryOutput = z.infer<typeof summarySchema>;
 
 // Validation helpers

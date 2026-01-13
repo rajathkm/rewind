@@ -103,9 +103,9 @@ Create a unified analysis in the following JSON format:
 
 Ensure nothing important from any section is lost. Synthesize overlapping points intelligently.`;
 
-export const PODCAST_PROMPT = `Analyze this podcast transcript and provide a comprehensive summary.
+export const PODCAST_PROMPT = `Analyze this podcast/video transcript and provide a comprehensive summary.
 
-Podcast: {title}
+Title: {title}
 Duration: {duration}
 
 Transcript:
@@ -129,9 +129,16 @@ Provide your analysis in the following JSON format:
   ],
   "speakers": [
     {
-      "name": "Speaker name if identifiable",
-      "role": "Host/Guest/Expert",
-      "keyContributions": ["Main point they made"]
+      "name": "Speaker name if identifiable (use 'Host', 'Guest 1', etc. if names not clear)",
+      "role": "Host/Guest/Expert/Interviewer/Interviewee",
+      "keyContributions": ["Main point they made", "Another contribution"]
+    }
+  ],
+  "chapters": [
+    {
+      "title": "Chapter or section title",
+      "timestamp": "Approximate timestamp (e.g., '0:00', '5:30', '15:00')",
+      "summary": "Brief description of what's covered in this section"
     }
   ],
   "relatedIdeas": [
@@ -150,7 +157,11 @@ Provide your analysis in the following JSON format:
   "topicsDiscussed": ["Topic 1", "Topic 2", ...]
 }
 
-Capture EVERY important point discussed. Podcasts often contain valuable insights in casual conversation.`;
+IMPORTANT:
+- If multiple speakers are detected (even if names aren't clear), identify them as "Host", "Guest 1", "Guest 2", etc.
+- Create chapters/timeline based on natural topic transitions in the content
+- Estimate timestamps based on content length and topic flow
+- Capture EVERY important point discussed. Podcasts and videos often contain valuable insights in casual conversation.`;
 
 export const VALIDATION_PROMPT = `Review this summary for quality and completeness.
 
