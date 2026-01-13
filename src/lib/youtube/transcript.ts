@@ -3,9 +3,25 @@
  *
  * Extracts captions/transcripts from YouTube videos using publicly available
  * caption data. Falls back to video metadata if no captions are available.
+ *
+ * Features:
+ * - Rate limiting to prevent being blocked
+ * - Retry logic with exponential backoff
+ * - Detailed error classification
  */
 
 import { getYouTubeThumbnailUrl } from "./url-parser";
+import {
+  fetchWithRetry,
+  fetchHtmlWithRetry,
+} from "./fetch-with-retry";
+import {
+  YouTubeError,
+  YouTubeErrorCode,
+  createYouTubeError,
+  detectErrorFromHtml,
+  wrapError,
+} from "./errors";
 
 export interface YouTubeVideoMetadata {
   videoId: string;
@@ -36,8 +52,15 @@ export interface TranscriptSegment {
 export interface YouTubeVideoData {
   metadata: YouTubeVideoMetadata;
   transcript: YouTubeTranscript | null;
-  error?: string;
+  error?: YouTubeError;
+  errorMessage?: string;
 }
+
+// Common request headers for YouTube
+const YOUTUBE_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (compatible; Rewind/1.0; +https://rewind.app)",
+  "Accept-Language": "en-US,en;q=0.9",
+};
 
 /**
  * Fetch video metadata from YouTube's oembed endpoint
@@ -45,14 +68,14 @@ export interface YouTubeVideoData {
 async function fetchVideoMetadata(
   videoId: string
 ): Promise<YouTubeVideoMetadata | null> {
-  try {
-    const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-    const response = await fetch(url);
+  const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
 
-    if (!response.ok) {
-      console.error(`[YouTube] Failed to fetch oembed for ${videoId}: ${response.status}`);
-      return null;
-    }
+  try {
+    const response = await fetchWithRetry(
+      url,
+      { headers: YOUTUBE_HEADERS },
+      { videoId, maxRetries: 2 }
+    );
 
     const data = await response.json();
 
@@ -65,7 +88,13 @@ async function fetchVideoMetadata(
         data.thumbnail_url || getYouTubeThumbnailUrl(videoId, "high"),
     };
   } catch (error) {
-    console.error("[YouTube] Error fetching oembed:", error);
+    if (error instanceof YouTubeError) {
+      console.error(
+        `[YouTube] Failed to fetch oembed for ${videoId}: ${error.code} - ${error.message}`
+      );
+    } else {
+      console.error("[YouTube] Error fetching oembed:", error);
+    }
     return null;
   }
 }
@@ -75,23 +104,21 @@ async function fetchVideoMetadata(
  */
 async function fetchVideoPageMetadata(
   videoId: string
-): Promise<Partial<YouTubeVideoMetadata>> {
+): Promise<{ metadata: Partial<YouTubeVideoMetadata>; html: string; error?: YouTubeError }> {
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+
   try {
-    const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; Rewind/1.0; +https://rewind.app)",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
+    const { html } = await fetchHtmlWithRetry(
+      url,
+      { headers: YOUTUBE_HEADERS },
+      { videoId, maxRetries: 2, checkHtmlForErrors: true }
+    );
 
-    if (!response.ok) {
-      console.error(`[YouTube] Failed to fetch video page: ${response.status}`);
-      return {};
+    // Check for errors in the HTML
+    const htmlError = detectErrorFromHtml(html, videoId);
+    if (htmlError) {
+      return { metadata: {}, html, error: htmlError };
     }
-
-    const html = await response.text();
 
     // Extract duration from meta tag
     const durationMatch = html.match(
@@ -101,6 +128,19 @@ async function fetchVideoPageMetadata(
     if (durationMatch) {
       durationSeconds =
         parseInt(durationMatch[1]) * 60 + parseInt(durationMatch[2]);
+    }
+
+    // Try alternative duration format (hours included)
+    if (!durationSeconds) {
+      const altDurationMatch = html.match(
+        /<meta itemprop="duration" content="PT(?:(\d+)H)?(?:(\d+)M)?(\d+)S"/
+      );
+      if (altDurationMatch) {
+        const hours = parseInt(altDurationMatch[1] || "0");
+        const minutes = parseInt(altDurationMatch[2] || "0");
+        const seconds = parseInt(altDurationMatch[3] || "0");
+        durationSeconds = hours * 3600 + minutes * 60 + seconds;
+      }
     }
 
     // Extract description
@@ -122,14 +162,23 @@ async function fetchVideoPageMetadata(
     const publishedAt = publishMatch ? publishMatch[1] : undefined;
 
     return {
-      durationSeconds,
-      description,
-      channelId,
-      publishedAt,
+      metadata: {
+        durationSeconds,
+        description,
+        channelId,
+        publishedAt,
+      },
+      html,
     };
   } catch (error) {
+    if (error instanceof YouTubeError) {
+      console.error(
+        `[YouTube] Failed to fetch video page for ${videoId}: ${error.code}`
+      );
+      return { metadata: {}, html: "", error };
+    }
     console.error("[YouTube] Error fetching video page:", error);
-    return {};
+    return { metadata: {}, html: "", error: wrapError(error, videoId) };
   }
 }
 
@@ -139,33 +188,45 @@ async function fetchVideoPageMetadata(
  * This uses the timedtext API which provides auto-generated captions
  */
 async function fetchTranscript(
-  videoId: string
-): Promise<YouTubeTranscript | null> {
+  videoId: string,
+  html?: string
+): Promise<{ transcript: YouTubeTranscript | null; error?: YouTubeError }> {
   try {
-    // First, we need to get the caption tracks from the video page
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const response = await fetch(videoUrl, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; Rewind/1.0; +https://rewind.app)",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
+    // If we don't have HTML, fetch it
+    let videoHtml = html;
+    if (!videoHtml) {
+      const result = await fetchHtmlWithRetry(
+        `https://www.youtube.com/watch?v=${videoId}`,
+        { headers: YOUTUBE_HEADERS },
+        { videoId, maxRetries: 2, checkHtmlForErrors: true }
+      );
+      videoHtml = result.html;
 
-    if (!response.ok) {
-      console.error(`[YouTube] Failed to fetch video page for transcript: ${response.status}`);
-      return null;
+      // Check for errors in the HTML
+      const htmlError = detectErrorFromHtml(videoHtml, videoId);
+      if (htmlError) {
+        return { transcript: null, error: htmlError };
+      }
     }
-
-    const html = await response.text();
 
     // Look for caption track URLs in the player response
     const captionRegex = /"captionTracks":\s*(\[.*?\])/;
-    const match = html.match(captionRegex);
+    const match = videoHtml.match(captionRegex);
 
     if (!match) {
+      // Check if captions are explicitly disabled
+      if (videoHtml.includes('"captionsDisabled":true')) {
+        return {
+          transcript: null,
+          error: createYouTubeError(YouTubeErrorCode.CAPTIONS_DISABLED, { videoId }),
+        };
+      }
+
       console.log(`[YouTube] No caption tracks found for video ${videoId}`);
-      return null;
+      return {
+        transcript: null,
+        error: createYouTubeError(YouTubeErrorCode.NO_CAPTIONS_AVAILABLE, { videoId }),
+      };
     }
 
     let captionTracks;
@@ -175,12 +236,18 @@ async function fetchTranscript(
       captionTracks = JSON.parse(jsonStr);
     } catch {
       // Try to extract baseUrl directly using a simpler pattern
-      const baseUrlMatch = html.match(
+      const baseUrlMatch = videoHtml.match(
         /"baseUrl":"(https:\/\/www\.youtube\.com\/api\/timedtext[^"]+)"/
       );
       if (!baseUrlMatch) {
         console.log(`[YouTube] Could not parse caption tracks for ${videoId}`);
-        return null;
+        return {
+          transcript: null,
+          error: createYouTubeError(YouTubeErrorCode.PARSE_ERROR, {
+            message: "Could not parse caption track data",
+            videoId,
+          }),
+        };
       }
 
       // Decode the URL
@@ -188,12 +255,15 @@ async function fetchTranscript(
         .replace(/\\u0026/g, "&")
         .replace(/\\\//g, "/");
 
-      return await fetchTranscriptFromUrl(captionUrl, false);
+      return await fetchTranscriptFromUrl(captionUrl, false, "en", videoId);
     }
 
     if (!Array.isArray(captionTracks) || captionTracks.length === 0) {
       console.log(`[YouTube] No caption tracks available for ${videoId}`);
-      return null;
+      return {
+        transcript: null,
+        error: createYouTubeError(YouTubeErrorCode.NO_CAPTIONS_AVAILABLE, { videoId }),
+      };
     }
 
     // Prefer English captions, then auto-generated, then any available
@@ -210,7 +280,10 @@ async function fetchTranscript(
 
     if (!selectedTrack || !selectedTrack.baseUrl) {
       console.log(`[YouTube] No usable caption track for ${videoId}`);
-      return null;
+      return {
+        transcript: null,
+        error: createYouTubeError(YouTubeErrorCode.NO_CAPTIONS_AVAILABLE, { videoId }),
+      };
     }
 
     const isAutoGenerated = selectedTrack.kind === "asr";
@@ -221,29 +294,34 @@ async function fetchTranscript(
       .replace(/\\u0026/g, "&")
       .replace(/\\\//g, "/");
 
-    return await fetchTranscriptFromUrl(captionUrl, isAutoGenerated, language);
+    return await fetchTranscriptFromUrl(captionUrl, isAutoGenerated, language, videoId);
   } catch (error) {
+    if (error instanceof YouTubeError) {
+      console.error(`[YouTube] Error fetching transcript: ${error.code}`);
+      return { transcript: null, error };
+    }
     console.error("[YouTube] Error fetching transcript:", error);
-    return null;
+    return { transcript: null, error: wrapError(error, videoId) };
   }
 }
 
 async function fetchTranscriptFromUrl(
   captionUrl: string,
   isAutoGenerated: boolean,
-  language: string = "en"
-): Promise<YouTubeTranscript | null> {
+  language: string = "en",
+  videoId?: string
+): Promise<{ transcript: YouTubeTranscript | null; error?: YouTubeError }> {
   try {
     // Add format=json3 for structured output
     const url = captionUrl.includes("fmt=")
       ? captionUrl
       : `${captionUrl}&fmt=json3`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`[YouTube] Failed to fetch captions: ${response.status}`);
-      return null;
-    }
+    const response = await fetchWithRetry(
+      url,
+      { headers: YOUTUBE_HEADERS },
+      { videoId, maxRetries: 2 }
+    );
 
     const contentType = response.headers.get("content-type");
 
@@ -256,7 +334,9 @@ async function fetchTranscriptFromUrl(
 
         for (const event of data.events) {
           if (event.segs) {
-            const text = event.segs.map((s: { utf8?: string }) => s.utf8 || "").join("");
+            const text = event.segs
+              .map((s: { utf8?: string }) => s.utf8 || "")
+              .join("");
             if (text.trim()) {
               segments.push({
                 text: text.trim(),
@@ -269,21 +349,24 @@ async function fetchTranscriptFromUrl(
         }
 
         return {
-          text: fullText.trim(),
-          segments,
-          language,
-          isAutoGenerated,
+          transcript: {
+            text: fullText.trim(),
+            segments,
+            language,
+            isAutoGenerated,
+          },
         };
       }
     }
 
     // Try XML format as fallback
-    const text = await response.text();
+    const text = await response.clone().text();
     const segments: TranscriptSegment[] = [];
     let fullText = "";
 
     // Parse XML transcript
-    const textRegex = /<text start="([\d.]+)" dur="([\d.]+)"[^>]*>([^<]*)<\/text>/g;
+    const textRegex =
+      /<text start="([\d.]+)" dur="([\d.]+)"[^>]*>([^<]*)<\/text>/g;
     let textMatch;
 
     while ((textMatch = textRegex.exec(text)) !== null) {
@@ -299,18 +382,36 @@ async function fetchTranscriptFromUrl(
     }
 
     if (segments.length === 0) {
-      return null;
+      return {
+        transcript: null,
+        error: createYouTubeError(YouTubeErrorCode.CAPTION_FETCH_FAILED, {
+          message: "No caption segments found in response",
+          videoId,
+        }),
+      };
     }
 
     return {
-      text: fullText.trim(),
-      segments,
-      language,
-      isAutoGenerated,
+      transcript: {
+        text: fullText.trim(),
+        segments,
+        language,
+        isAutoGenerated,
+      },
     };
   } catch (error) {
+    if (error instanceof YouTubeError) {
+      console.error(`[YouTube] Error parsing transcript: ${error.code}`);
+      return { transcript: null, error };
+    }
     console.error("[YouTube] Error parsing transcript:", error);
-    return null;
+    return {
+      transcript: null,
+      error: createYouTubeError(YouTubeErrorCode.CAPTION_FETCH_FAILED, {
+        message: error instanceof Error ? error.message : "Failed to fetch captions",
+        videoId,
+      }),
+    };
   }
 }
 
@@ -334,14 +435,14 @@ export async function fetchYouTubeVideoData(
 ): Promise<YouTubeVideoData> {
   console.log(`[YouTube] Fetching data for video: ${videoId}`);
 
-  // Fetch metadata and transcript in parallel
-  const [oembedData, pageMetadata, transcript] = await Promise.all([
-    fetchVideoMetadata(videoId),
-    fetchVideoPageMetadata(videoId),
-    fetchTranscript(videoId),
-  ]);
+  // Fetch oembed metadata first (lightweight check if video exists)
+  const oembedData = await fetchVideoMetadata(videoId);
 
   if (!oembedData) {
+    const error = createYouTubeError(YouTubeErrorCode.VIDEO_NOT_FOUND, {
+      message: "Could not fetch video metadata",
+      videoId,
+    });
     return {
       metadata: {
         videoId,
@@ -351,9 +452,33 @@ export async function fetchYouTubeVideoData(
         thumbnailUrl: getYouTubeThumbnailUrl(videoId, "high"),
       },
       transcript: null,
-      error: "Could not fetch video metadata. The video may be private or unavailable.",
+      error,
+      errorMessage: error.userMessage,
     };
   }
+
+  // Fetch page metadata (includes the HTML we'll use for transcript)
+  const { metadata: pageMetadata, html, error: pageError } =
+    await fetchVideoPageMetadata(videoId);
+
+  if (pageError && !pageError.isRetryable) {
+    return {
+      metadata: {
+        ...oembedData,
+        ...pageMetadata,
+        title: oembedData.title,
+        channelName: oembedData.channelName,
+        thumbnailUrl: oembedData.thumbnailUrl,
+        description: pageMetadata.description || oembedData.description,
+      },
+      transcript: null,
+      error: pageError,
+      errorMessage: pageError.userMessage,
+    };
+  }
+
+  // Fetch transcript using the HTML we already have
+  const { transcript, error: transcriptError } = await fetchTranscript(videoId, html);
 
   // Merge metadata from both sources
   const metadata: YouTubeVideoMetadata = {
@@ -366,11 +491,22 @@ export async function fetchYouTubeVideoData(
     description: pageMetadata.description || oembedData.description,
   };
 
+  // Return with transcript or error
+  if (transcript) {
+    return {
+      metadata,
+      transcript,
+    };
+  }
+
   return {
     metadata,
-    transcript,
-    error: transcript
-      ? undefined
-      : "No captions available for this video. Summary will be based on title and description only.",
+    transcript: null,
+    error: transcriptError,
+    errorMessage: transcriptError?.userMessage ||
+      "No captions available for this video. Summary will be based on title and description only.",
   };
 }
+
+// Re-export error types for consumers
+export { YouTubeError, YouTubeErrorCode } from "./errors";
