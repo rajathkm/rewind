@@ -24,6 +24,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  Youtube,
+  Video,
 } from "lucide-react";
 import { cn, formatDate, formatReadingTime, formatDuration } from "@/lib/utils";
 import { useAudioStore } from "@/stores/audio-store";
@@ -47,6 +49,12 @@ interface ContentDetail {
   retryCount?: number;
   contentSource?: "rss" | "fetched";
   isSummarizable?: boolean;
+  // YouTube-specific fields
+  youtubeVideoId?: string;
+  youtubeChannelName?: string;
+  youtubeChannelId?: string;
+  youtubeThumbnailUrl?: string;
+  transcriptSource?: "auto" | "manual" | null;
   source: {
     id: string;
     sourceType: string;
@@ -210,6 +218,12 @@ export default function ContentDetailPage({
   }
 
   const isPodcast = content.source.sourceType === "podcast";
+  const isYouTubeVideo = content.contentType === "youtube_video";
+
+  // For YouTube videos, construct the YouTube URL from the video ID
+  const youtubeUrl = isYouTubeVideo && content.youtubeVideoId
+    ? `https://www.youtube.com/watch?v=${content.youtubeVideoId}`
+    : content.url;
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto pb-24">
@@ -221,16 +235,33 @@ export default function ContentDetailPage({
 
       {/* Header */}
       <div className="mb-8">
+        {/* Content Type Badge for YouTube */}
+        {isYouTubeVideo && (
+          <div className="mb-4">
+            <Badge variant="secondary" className="bg-red-500 text-white">
+              <Youtube className="w-3 h-3 mr-1" />
+              YouTube Video
+            </Badge>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 mb-4">
-          {content.source.imageUrl && (
+          {isYouTubeVideo ? (
+            // YouTube-specific source display
+            <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950/50 flex items-center justify-center">
+              <Youtube className="w-5 h-5 text-red-500" />
+            </div>
+          ) : content.source.imageUrl ? (
             <img
               src={content.source.imageUrl}
               alt=""
               className="w-10 h-10 rounded-lg object-cover"
             />
-          )}
+          ) : null}
           <div>
-            <p className="font-medium">{content.source.title}</p>
+            <p className="font-medium">
+              {isYouTubeVideo ? content.youtubeChannelName || "YouTube" : content.source.title}
+            </p>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               {content.publishedAt && (
                 <span className="flex items-center gap-1">
@@ -238,7 +269,12 @@ export default function ContentDetailPage({
                   {formatDate(content.publishedAt)}
                 </span>
               )}
-              {isPodcast && content.durationSeconds ? (
+              {isYouTubeVideo && content.durationSeconds ? (
+                <span className="flex items-center gap-1">
+                  <Video className="w-3 h-3" />
+                  {formatDuration(content.durationSeconds)}
+                </span>
+              ) : isPodcast && content.durationSeconds ? (
                 <span className="flex items-center gap-1">
                   <Headphones className="w-3 h-3" />
                   {formatDuration(content.durationSeconds)}
@@ -277,7 +313,18 @@ export default function ContentDetailPage({
             </Button>
           )}
 
-          {content.url && (
+          {/* Watch on YouTube button for YouTube videos */}
+          {isYouTubeVideo && youtubeUrl && (
+            <Button variant="outline" asChild className="border-red-500/30 hover:bg-red-500/10">
+              <a href={youtubeUrl} target="_blank" rel="noopener noreferrer">
+                <Youtube className="w-4 h-4 mr-2 text-red-500" />
+                Watch on YouTube
+              </a>
+            </Button>
+          )}
+
+          {/* View Original for non-YouTube content */}
+          {!isYouTubeVideo && content.url && (
             <Button variant="outline" asChild>
               <a href={content.url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
@@ -330,7 +377,7 @@ export default function ContentDetailPage({
           </div>
           <SummaryDisplay
             summary={content.summary}
-            contentType={isPodcast ? "podcast" : "article"}
+            contentType={isPodcast || isYouTubeVideo ? "podcast" : "article"}
           />
         </div>
       ) : (

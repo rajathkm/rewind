@@ -119,6 +119,12 @@ export async function GET(
       retryCount: content.retry_count,
       contentSource: content.content_source,
       isSummarizable: content.is_summarizable,
+      // YouTube-specific fields
+      youtubeVideoId: content.youtube_video_id,
+      youtubeChannelName: content.youtube_channel_name,
+      youtubeChannelId: content.youtube_channel_id,
+      youtubeThumbnailUrl: content.youtube_thumbnail_url,
+      transcriptSource: content.transcript_source,
       source,
       summary,
       isRead: userState?.is_read || false,
