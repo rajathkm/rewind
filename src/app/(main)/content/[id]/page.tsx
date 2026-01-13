@@ -20,6 +20,10 @@ import {
   Play,
   Pause,
   Headphones,
+  RotateCcw,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { cn, formatDate, formatReadingTime, formatDuration } from "@/lib/utils";
 import { useAudioStore } from "@/stores/audio-store";
@@ -39,6 +43,10 @@ interface ContentDetail {
   publishedAt?: string;
   wordCount?: number;
   readingTimeMinutes?: number;
+  processingStatus?: "pending" | "processing" | "completed" | "failed" | "skipped" | "permanently_failed";
+  retryCount?: number;
+  contentSource?: "rss" | "fetched";
+  isSummarizable?: boolean;
   source: {
     id: string;
     sourceType: string;
@@ -60,6 +68,7 @@ export default function ContentDetailPage({
   const [content, setContent] = useState<ContentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { currentEpisode, isPlaying, play, pause } = useAudioStore();
@@ -113,6 +122,29 @@ export default function ContentDetailPage({
       alert("Failed to generate summary");
     } finally {
       setIsSummarizing(false);
+    }
+  };
+
+  const handleRetrySummarization = async () => {
+    if (!content) return;
+
+    setIsRetrying(true);
+    try {
+      const response = await fetch(`/api/content/${id}/retry`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        // Refresh content to get the new summary
+        await fetchContent();
+      } else {
+        alert(data.error || "Failed to retry summarization");
+      }
+    } catch (err) {
+      alert("Failed to retry summarization");
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -291,6 +323,10 @@ export default function ContentDetailPage({
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold">AI Summary</h2>
+            <Badge variant="outline" className="text-xs text-green-600 border-green-600/30">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Completed
+            </Badge>
           </div>
           <SummaryDisplay
             summary={content.summary}
@@ -300,24 +336,109 @@ export default function ContentDetailPage({
       ) : (
         <Card className="mb-8">
           <CardContent className="py-8 text-center">
-            <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-semibold mb-2">No summary available</h3>
-            <p className="text-muted-foreground mb-4">
-              Generate an AI summary to get key takeaways, insights, and related ideas
-            </p>
-            <Button onClick={handleGenerateSummary} disabled={isSummarizing}>
-              {isSummarizing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Generate Summary
-                </>
-              )}
-            </Button>
+            {/* Status indicator */}
+            {content.processingStatus === "failed" || content.processingStatus === "permanently_failed" ? (
+              <>
+                <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h3 className="font-semibold mb-2 text-destructive">
+                  Summarization {content.processingStatus === "permanently_failed" ? "Permanently Failed" : "Failed"}
+                </h3>
+                <p className="text-muted-foreground mb-2">
+                  {content.processingStatus === "permanently_failed"
+                    ? "This content failed after multiple retries."
+                    : `Attempt ${content.retryCount || 1} failed. Click retry to try again.`}
+                </p>
+                <Button
+                  onClick={handleRetrySummarization}
+                  disabled={isRetrying}
+                  variant="destructive"
+                  className="mt-2"
+                >
+                  {isRetrying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Retry Summarization
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : content.processingStatus === "processing" ? (
+              <>
+                <Loader2 className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
+                <h3 className="font-semibold mb-2">Generating Summary...</h3>
+                <p className="text-muted-foreground">
+                  AI is analyzing this content. This may take a moment.
+                </p>
+              </>
+            ) : content.processingStatus === "skipped" ? (
+              <>
+                <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Content Skipped</h3>
+                <p className="text-muted-foreground mb-4">
+                  This content has fewer than {isPodcast ? "500" : "300"} words and was skipped for summarization.
+                </p>
+                <Button onClick={handleGenerateSummary} disabled={isSummarizing} variant="outline">
+                  {isSummarizing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Anyway
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : content.processingStatus === "pending" ? (
+              <>
+                <Clock className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">Summary Pending</h3>
+                <p className="text-muted-foreground mb-4">
+                  This content is queued for AI summarization.
+                </p>
+                <Button onClick={handleGenerateSummary} disabled={isSummarizing}>
+                  {isSummarizing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Now
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold mb-2">No summary available</h3>
+                <p className="text-muted-foreground mb-4">
+                  Generate an AI summary to get key takeaways, insights, and related ideas
+                </p>
+                <Button onClick={handleGenerateSummary} disabled={isSummarizing}>
+                  {isSummarizing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Summary
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

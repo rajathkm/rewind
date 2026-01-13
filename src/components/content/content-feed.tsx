@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ProcessingStatus } from "./processing-status-badge";
 
 interface ContentItem {
   id: string;
@@ -37,6 +38,8 @@ interface ContentItem {
   isRead?: boolean;
   isSaved?: boolean;
   hasSummary?: boolean;
+  processingStatus?: ProcessingStatus;
+  retryCount?: number;
   isDownloaded?: boolean;
   playbackProgress?: number;
 }
@@ -106,6 +109,8 @@ export function ContentFeed({
           isRead={item.isRead}
           isSaved={item.isSaved}
           hasSummary={item.hasSummary}
+          processingStatus={item.processingStatus}
+          retryCount={item.retryCount}
           isDownloaded={item.isDownloaded}
           playbackProgress={item.playbackProgress}
           variant={variant}
@@ -130,6 +135,8 @@ export function ContentFeed({
         isRead={item.isRead}
         isSaved={item.isSaved}
         hasSummary={item.hasSummary}
+        processingStatus={item.processingStatus}
+        retryCount={item.retryCount}
         variant={variant}
         onClick={() => onItemClick?.(item)}
         onSave={() => onSave?.(item)}

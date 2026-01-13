@@ -1,0 +1,276 @@
+{
+  "project": "Rewind",
+  "branchName": "ralph/content-processing-pipeline",
+  "description": "Fix content processing pipeline - improve article extraction accuracy, enable full article fetching, process podcasts with show notes, add retry logic, and respect auto-summarize settings",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Database migration for processing pipeline",
+      "description": "As a developer, I need to add new columns and enum values to support the enhanced processing pipeline.",
+      "acceptanceCriteria": [
+        "Create migration file `supabase/migrations/003_processing_pipeline.sql`",
+        "Add `retry_count` (int, default 0) to `content_items` table",
+        "Add `last_retry_at` (timestamptz, nullable) to `content_items` table",
+        "Add `content_source` (text, nullable) to `content_items` - values: 'rss', 'fetched'",
+        "Add `is_summarizable` (boolean, default true) to `content_items` table",
+        "Add 'skipped' and 'permanently_failed' values to processing_status enum using ALTER TYPE",
+        "Add index on `processing_status` column for efficient queries",
+        "npm run typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Install cheerio and create content config",
+      "description": "As a developer, I need DOM parsing library and configuration constants for content processing.",
+      "acceptanceCriteria": [
+        "Run `npm install cheerio` to add DOM parsing library",
+        "Create `src/lib/content/config.ts` with constants",
+        "Add MIN_WORDS_FOR_SUMMARY = 300",
+        "Add MIN_WORDS_FOR_PODCAST_SUMMARY = 500",
+        "Add CONTENT_SELECTORS array: ['article', '[role=\"main\"]', '.post-content', '.article-content', '.entry-content', '.content-body', 'main']",
+        "Add NOISE_SELECTORS array: ['nav', 'header', 'footer', 'aside', '.ads', '.comments', '.social-share', '.related-posts', '.sidebar']",
+        "Export all constants",
+        "npm run typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Rewrite HTML content extractor with cheerio",
+      "description": "As a user, I want articles to be extracted accurately so that summaries reflect the actual article content, not website navigation or ads.",
+      "acceptanceCriteria": [
+        "Rewrite `src/lib/content/extractor.ts` to use cheerio for DOM parsing",
+        "Import CONTENT_SELECTORS and NOISE_SELECTORS from config.ts",
+        "In extractFromHtml: load HTML with cheerio, remove all NOISE_SELECTORS elements first",
+        "Try each CONTENT_SELECTOR in order, use first one that has >100 chars of text",
+        "Fallback to body if no selector matches",
+        "Convert selected content to plain text preserving paragraph breaks (double newlines)",
+        "Extract title from h1 or og:title or title tag",
+        "Extract image from og:image meta tag",
+        "Calculate word count and reading time (200 WPM)",
+        "npm run typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create article fetcher utility",
+      "description": "As a developer, I need a utility to fetch full articles from URLs when RSS content is truncated.",
+      "acceptanceCriteria": [
+        "Create `src/lib/content/fetcher.ts`",
+        "Export async function fetchFullArticle(url: string): Promise<{ html: string; finalUrl: string } | null>",
+        "Use native fetch with 10 second timeout",
+        "Set User-Agent header to 'Rewind/1.0 (+https://rewind.app)'",
+        "Set Accept header to 'text/html,application/xhtml+xml'",
+        "Handle up to 3 redirects by following Location header",
+        "Return null on any error (don't throw)",
+        "Log errors with console.error including URL",
+        "npm run typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Integrate full article fetching into content sync",
+      "description": "As a user, I want Rewind to fetch the full article from the source URL when RSS content is truncated so I get complete summaries.",
+      "acceptanceCriteria": [
+        "In `src/lib/sync/content-sync.ts`, import fetchFullArticle and extractFromHtml",
+        "In processItem function, after initial extraction check word count",
+        "If extracted text < 300 words AND item has url, call fetchFullArticle(item.link)",
+        "If fetch succeeds, run extractFromHtml on fetched HTML and use that text instead",
+        "Set content_source field to 'fetched' if article was fetched, 'rss' otherwise",
+        "Set is_summarizable to true if word_count >= 300, false otherwise",
+        "Set processing_status to 'skipped' if is_summarizable is false",
+        "npm run typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Improve podcast content extraction",
+      "description": "As a user, I want podcasts with detailed show notes to be summarized so I can quickly understand episode content.",
+      "acceptanceCriteria": [
+        "In `src/lib/sync/content-sync.ts` processItem function, for podcast_episode content type:",
+        "Combine text from: item.itunesSummary, item.contentSnippet, item.content, item.contentEncoded",
+        "Deduplicate by checking if one string contains another, keep the longer one",
+        "Use combined text as extracted_text",
+        "Set is_summarizable to true only if word_count >= 500 for podcasts",
+        "Set processing_status to 'skipped' if podcast word_count < 500",
+        "Log podcast title and word count for debugging",
+        "npm run typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add retry logic to auto-summarize",
+      "description": "As a user, I want failed items to be automatically retried so temporary failures don't permanently block content.",
+      "acceptanceCriteria": [
+        "In `src/lib/sync/auto-summarize.ts`, add MAX_RETRIES = 3 constant",
+        "Modify query to include items where: (processing_status = 'pending') OR (processing_status = 'failed' AND retry_count < 3)",
+        "For failed items, check last_retry_at and apply backoff: 5min for retry 1, 30min for retry 2, 2hr for retry 3",
+        "On summarization failure: increment retry_count, set last_retry_at to now()",
+        "If retry_count reaches 3, set processing_status to 'permanently_failed'",
+        "On success: reset retry_count to 0",
+        "npm run typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Filter auto-summarize by subscription setting",
+      "description": "As a user, I want auto-summarization to respect my per-subscription settings.",
+      "acceptanceCriteria": [
+        "In `src/lib/sync/auto-summarize.ts`, modify the query to join with subscriptions table",
+        "Add: .inner join on content_items.source_id = subscriptions.source_id",
+        "Filter to only include items where subscription.auto_summarize = true",
+        "Handle case where content has no subscription (skip it)",
+        "Log when skipping due to auto_summarize = false",
+        "npm run typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add auto-summarize toggle to subscription UI",
+      "description": "As a user, I want to toggle auto-summarization on/off for specific subscriptions from the UI.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/subscriptions/page.tsx`, add toggle switch to each subscription card",
+        "Position toggle near the sparkle icon, replace static icon with interactive toggle",
+        "Toggle should show current auto_summarize state (on/off)",
+        "On toggle change, call PATCH /api/subscriptions/[id] with { autoSummarize: boolean }",
+        "Show loading state during API call",
+        "Update local state on success",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add manual retry API endpoint",
+      "description": "As a developer, I need an API endpoint to manually retry summarization for failed items.",
+      "acceptanceCriteria": [
+        "Create `src/app/api/content/[id]/retry/route.ts`",
+        "Export POST handler that accepts content ID from params",
+        "Reset retry_count to 0 and processing_status to 'pending'",
+        "Call summarizeContent directly and wait for result",
+        "On success: return { success: true, summary: result }",
+        "On failure: return { success: false, error: message } with status 500",
+        "Handle not found case with 404 status",
+        "npm run typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add retry button to content detail page",
+      "description": "As a user, I want to manually retry failed summaries from the content detail page.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/content/[id]/page.tsx`, check if content has processing_status 'failed' or 'permanently_failed'",
+        "Show 'Retry Summary' button next to 'Generate Summary' button when status is failed",
+        "Button calls POST /api/content/[id]/retry",
+        "Show loading spinner during retry",
+        "On success: update content state with new summary, show success toast",
+        "On failure: show error toast with message",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add processing status badge to content cards",
+      "description": "As a user, I want to see the processing status of content items so I know what's been summarized, pending, or failed.",
+      "acceptanceCriteria": [
+        "Create StatusBadge component in `src/components/content/status-badge.tsx`",
+        "Badge variants: pending (yellow bg), processing (blue bg with pulse animation), failed (red bg), skipped (gray bg)",
+        "Do NOT show badge for 'completed' status (to avoid clutter)",
+        "In ArticleCard: add optional processingStatus prop, render StatusBadge if not completed",
+        "In PodcastCard: add optional processingStatus prop, render StatusBadge if not completed",
+        "Position badge in top-right corner of card",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Pass processing status to content cards",
+      "description": "As a user, I want to see processing status on home page and search results.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/home/page.tsx`, update queries to select processing_status from content_items",
+        "Pass processingStatus prop to ArticleCard and PodcastCard components",
+        "In `src/app/(main)/search/page.tsx`, update SearchResult interface to include processingStatus",
+        "Update /api/search to return processing_status field",
+        "Pass processingStatus to cards in search results",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Show detailed status on content detail page",
+      "description": "As a user, I want to see detailed processing status and reason on the content detail page.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/content/[id]/page.tsx`, show status section below title when status is not 'completed'",
+        "For 'pending': show 'Summary pending...' with clock icon",
+        "For 'processing': show 'Generating summary...' with spinner",
+        "For 'failed': show 'Summary failed' with retry_count: 'Attempt X of 3'",
+        "For 'skipped': show 'Content too short for summary (X words, minimum 300 required)'",
+        "For 'permanently_failed': show 'Summary generation failed after 3 attempts'",
+        "Style with appropriate colors matching StatusBadge",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add structured sync logging",
+      "description": "As a developer, I want detailed logging during sync so I can debug issues and monitor pipeline health.",
+      "acceptanceCriteria": [
+        "Create `src/lib/utils/logger.ts` with functions: logDebug, logInfo, logWarn, logError",
+        "Each function takes (context: string, message: string, data?: object)",
+        "Format: [LEVEL] [context] message {data}",
+        "In content-sync.ts: log source name, items found, items added, items skipped with reasons",
+        "In content-sync.ts: log word count before/after full article fetch",
+        "In auto-summarize.ts: log each summarization attempt, success/failure, token usage",
+        "npm run typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

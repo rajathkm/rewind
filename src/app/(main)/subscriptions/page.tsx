@@ -272,6 +272,42 @@ export default function SubscriptionsPage() {
     }
   };
 
+  const handleToggleAutoSummarize = async (subscription: Subscription) => {
+    const newValue = !subscription.autoSummarize;
+
+    // Optimistic update
+    setSubscriptions((prev) =>
+      prev.map((s) =>
+        s.id === subscription.id ? { ...s, autoSummarize: newValue } : s
+      )
+    );
+
+    try {
+      const response = await fetch(`/api/subscriptions/${subscription.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoSummarize: newValue }),
+      });
+
+      if (!response.ok) {
+        // Revert on failure
+        setSubscriptions((prev) =>
+          prev.map((s) =>
+            s.id === subscription.id ? { ...s, autoSummarize: !newValue } : s
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling auto-summarize:", error);
+      // Revert on error
+      setSubscriptions((prev) =>
+        prev.map((s) =>
+          s.id === subscription.id ? { ...s, autoSummarize: !newValue } : s
+        )
+      );
+    }
+  };
+
   const filteredSubscriptions = subscriptions.filter((sub) => {
     if (filter !== "all" && sub.source.sourceType !== filter) return false;
     if (searchQuery) {
@@ -470,8 +506,15 @@ export default function SubscriptionsPage() {
                       <Badge variant="outline" className="text-xs capitalize">
                         {subscription.source.sourceType}
                       </Badge>
-                      {subscription.autoSummarize && (
-                        <Sparkles className="w-3 h-3 text-primary" />
+                      {subscription.autoSummarize ? (
+                        <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          AI
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                          No AI
+                        </Badge>
                       )}
                       {subscription.status === "paused" && (
                         <Badge variant="secondary" className="text-xs">
@@ -505,6 +548,17 @@ export default function SubscriptionsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleToggleAutoSummarize(subscription)}
+                      title={subscription.autoSummarize ? "Disable AI summaries" : "Enable AI summaries"}
+                      className={cn(
+                        subscription.autoSummarize && "text-primary hover:text-primary/80"
+                      )}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

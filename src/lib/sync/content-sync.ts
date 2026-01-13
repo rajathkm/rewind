@@ -1,13 +1,8 @@
 import Parser from "rss-parser";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { extractFromHtml, extractFromText } from "@/lib/content/extractor";
-
-function extractContent(content: string, type: "html" | "text") {
-  if (type === "html") {
-    return { text: extractFromHtml(content).content };
-  }
-  return { text: extractFromText(content).content };
-}
+import { extractFromHtml } from "@/lib/content/extractor";
+import { fetchFullArticle, isFetchableUrl } from "@/lib/content/fetcher";
+import { MIN_WORDS_FOR_SUMMARY, MIN_WORDS_FOR_PODCAST_SUMMARY } from "@/lib/content/config";
 
 // Custom feed item interface
 interface CustomFeedItem {
@@ -55,6 +50,7 @@ export interface SyncResult {
   itemsFound: number;
   itemsAdded: number;
   itemsUpdated: number;
+  itemsSkipped: number;
   error?: string;
 }
 
@@ -64,6 +60,7 @@ export interface SyncSummary {
   failedSources: number;
   totalItemsAdded: number;
   totalItemsUpdated: number;
+  totalItemsSkipped: number;
   results: SyncResult[];
   duration: number;
 }
@@ -94,6 +91,7 @@ export async function syncAllSources(): Promise<SyncSummary> {
       failedSources: 0,
       totalItemsAdded: 0,
       totalItemsUpdated: 0,
+      totalItemsSkipped: 0,
       results: [],
       duration: Date.now() - startTime,
     };
@@ -117,6 +115,7 @@ export async function syncAllSources(): Promise<SyncSummary> {
     failedSources: results.filter((r) => !r.success).length,
     totalItemsAdded: results.reduce((sum, r) => sum + r.itemsAdded, 0),
     totalItemsUpdated: results.reduce((sum, r) => sum + r.itemsUpdated, 0),
+    totalItemsSkipped: results.reduce((sum, r) => sum + r.itemsSkipped, 0),
     results,
     duration: Date.now() - startTime,
   };
@@ -145,6 +144,7 @@ export async function syncSource(
     itemsFound: 0,
     itemsAdded: 0,
     itemsUpdated: 0,
+    itemsSkipped: 0,
   };
 
   if (!source.feed_url) {
@@ -171,6 +171,9 @@ export async function syncSource(
         result.itemsAdded++;
       } else if (contentItem.isUpdated) {
         result.itemsUpdated++;
+      }
+      if (contentItem.isSkipped) {
+        result.itemsSkipped++;
       }
     }
 
@@ -204,6 +207,7 @@ export async function syncSourceById(sourceId: string): Promise<SyncResult> {
       itemsFound: 0,
       itemsAdded: 0,
       itemsUpdated: 0,
+      itemsSkipped: 0,
       error: error?.message || "Source not found",
     };
   }
@@ -214,6 +218,7 @@ export async function syncSourceById(sourceId: string): Promise<SyncResult> {
 interface ProcessedItem {
   isNew: boolean;
   isUpdated: boolean;
+  isSkipped: boolean;
   id?: string;
 }
 
@@ -236,13 +241,57 @@ async function processItem(
 
   // Determine content type
   const contentType = determineContentType(item, source.source_type);
+  const isPodcast = contentType === "podcast_episode";
 
-  // Extract content
-  const rawContent = item.contentEncoded || item.content || item.contentSnippet || "";
-  const extractedContent = extractContent(rawContent, "html");
+  // Extract content from RSS
+  let extractedText = "";
+  let contentSource: "rss" | "fetched" = "rss";
+
+  if (isPodcast) {
+    // For podcasts, combine all available text sources
+    extractedText = extractPodcastContent(item);
+  } else {
+    // For articles, extract from RSS content first
+    const rawContent = item.contentEncoded || item.content || item.contentSnippet || "";
+    if (rawContent) {
+      const extracted = extractFromHtml(rawContent);
+      extractedText = extracted.content;
+    }
+  }
+
+  // Calculate initial word count
+  let wordCount = countWords(extractedText);
+  console.log(`[Sync] ${item.title}: Initial word count = ${wordCount} (from RSS)`);
+
+  // For articles with insufficient content, try fetching full article
+  if (!isPodcast && wordCount < MIN_WORDS_FOR_SUMMARY && item.link && isFetchableUrl(item.link)) {
+    console.log(`[Sync] ${item.title}: Fetching full article from ${item.link}`);
+    const fetchResult = await fetchFullArticle(item.link);
+
+    if (fetchResult) {
+      const extracted = extractFromHtml(fetchResult.html);
+      const fetchedWordCount = countWords(extracted.content);
+
+      console.log(`[Sync] ${item.title}: Fetched word count = ${fetchedWordCount}`);
+
+      // Use fetched content if it's better
+      if (fetchedWordCount > wordCount) {
+        extractedText = extracted.content;
+        wordCount = fetchedWordCount;
+        contentSource = "fetched";
+      }
+    }
+  }
+
+  // Determine if summarizable based on word count thresholds
+  const minWords = isPodcast ? MIN_WORDS_FOR_PODCAST_SUMMARY : MIN_WORDS_FOR_SUMMARY;
+  const isSummarizable = wordCount >= minWords;
+  const processingStatus = isSummarizable ? "pending" : "skipped";
+
+  console.log(`[Sync] ${item.title}: Final word count = ${wordCount}, summarizable = ${isSummarizable}`);
 
   // Calculate content hash for change detection
-  const contentHash = hashContent(extractedContent.text);
+  const contentHash = hashContent(extractedText);
 
   // Parse audio info for podcasts
   const audioInfo = parseAudioInfo(item);
@@ -257,14 +306,17 @@ async function processItem(
     url: item.link || null,
     image_url: extractImageUrl(item),
     published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
-    raw_content: rawContent,
-    extracted_text: extractedContent.text,
+    raw_content: item.contentEncoded || item.content || item.contentSnippet || "",
+    extracted_text: extractedText,
     content_hash: contentHash,
-    word_count: extractedContent.text.split(/\s+/).filter(Boolean).length,
+    word_count: wordCount,
+    content_source: contentSource,
+    is_summarizable: isSummarizable,
     audio_url: audioInfo?.url || null,
     audio_duration_seconds: audioInfo?.duration || null,
     audio_file_size: audioInfo?.fileSize || null,
-    processing_status: "pending" as const,
+    processing_status: processingStatus as "pending" | "skipped",
+    retry_count: 0,
     metadata: {
       categories: item.categories || [],
       enclosure: item.enclosure || null,
@@ -282,9 +334,9 @@ async function processItem(
         })
         .eq("id", existing.id);
 
-      return { isNew: false, isUpdated: true, id: existing.id };
+      return { isNew: false, isUpdated: true, isSkipped: !isSummarizable, id: existing.id };
     }
-    return { isNew: false, isUpdated: false, id: existing.id };
+    return { isNew: false, isUpdated: false, isSkipped: false, id: existing.id };
   }
 
   // Insert new item
@@ -295,11 +347,48 @@ async function processItem(
     .single();
 
   if (error) {
-    console.error(`Failed to insert item: ${error.message}`);
-    return { isNew: false, isUpdated: false };
+    console.error(`[Sync] Failed to insert item: ${error.message}`);
+    return { isNew: false, isUpdated: false, isSkipped: false };
   }
 
-  return { isNew: true, isUpdated: false, id: newItem?.id };
+  return { isNew: true, isUpdated: false, isSkipped: !isSummarizable, id: newItem?.id };
+}
+
+/**
+ * Extract and combine all available podcast content sources
+ */
+function extractPodcastContent(item: ExtendedItem): string {
+  const sources: string[] = [];
+
+  // Collect all available text sources
+  if (item.itunesSummary) {
+    sources.push(item.itunesSummary);
+  }
+  if (item.contentEncoded) {
+    const extracted = extractFromHtml(item.contentEncoded);
+    sources.push(extracted.content);
+  }
+  if (item.content && item.content !== item.contentEncoded) {
+    const extracted = extractFromHtml(item.content);
+    if (!sources.some(s => s.includes(extracted.content) || extracted.content.includes(s))) {
+      sources.push(extracted.content);
+    }
+  }
+  if (item.contentSnippet && !sources.some(s => s.includes(item.contentSnippet!))) {
+    sources.push(item.contentSnippet);
+  }
+
+  // Combine unique content, preferring longer versions
+  const combined = sources
+    .filter(s => s && s.trim().length > 0)
+    .sort((a, b) => b.length - a.length)
+    .join("\n\n");
+
+  return combined.trim();
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(word => word.length > 0).length;
 }
 
 function determineContentType(
