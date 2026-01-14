@@ -232,12 +232,20 @@ async function processItem(
   // Generate a unique external ID from guid or link
   const externalId = item.guid || item.link || `${source.id}-${item.title}`;
 
-  // Check if item already exists
-  const { data: existing } = await supabase
+  // Check if item already exists - use maybeSingle to handle 0 or 1 rows gracefully
+  // Also filter by source_id to ensure uniqueness per source
+  const { data: existing, error: lookupError } = await supabase
     .from("content_items")
     .select("id, content_hash")
+    .eq("source_id", source.id)
     .eq("external_id", externalId)
-    .single();
+    .maybeSingle();
+
+  // If there was an error (excluding no rows found), log and skip to avoid duplicates
+  if (lookupError) {
+    console.error(`[Sync] Error checking for existing item: ${lookupError.message}`);
+    return { isNew: false, isUpdated: false, isSkipped: true };
+  }
 
   // Determine content type
   const contentType = determineContentType(item, source.source_type);
@@ -339,15 +347,39 @@ async function processItem(
     return { isNew: false, isUpdated: false, isSkipped: false, id: existing.id };
   }
 
-  // Insert new item
+  // Insert new item - use upsert to handle race conditions
+  // onConflict requires a unique constraint on (source_id, external_id)
   const { data: newItem, error } = await supabase
     .from("content_items")
-    .insert(contentRecord)
+    .upsert(contentRecord, {
+      onConflict: "source_id,external_id",
+      ignoreDuplicates: false, // Update on conflict
+    })
     .select("id")
     .single();
 
   if (error) {
-    console.error(`[Sync] Failed to insert item: ${error.message}`);
+    // If upsert fails due to missing constraint, fall back to regular insert
+    if (error.message.includes("unique") || error.message.includes("constraint")) {
+      console.log(`[Sync] Upsert constraint not available, using insert`);
+      const { data: insertedItem, error: insertError } = await supabase
+        .from("content_items")
+        .insert(contentRecord)
+        .select("id")
+        .single();
+
+      if (insertError) {
+        // If duplicate key error, item already exists - not an error
+        if (insertError.code === "23505") {
+          console.log(`[Sync] Item already exists: ${item.title}`);
+          return { isNew: false, isUpdated: false, isSkipped: false };
+        }
+        console.error(`[Sync] Failed to insert item: ${insertError.message}`);
+        return { isNew: false, isUpdated: false, isSkipped: false };
+      }
+      return { isNew: true, isUpdated: false, isSkipped: !isSummarizable, id: insertedItem?.id };
+    }
+    console.error(`[Sync] Failed to upsert item: ${error.message}`);
     return { isNew: false, isUpdated: false, isSkipped: false };
   }
 
