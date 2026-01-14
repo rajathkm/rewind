@@ -47,8 +47,15 @@ const badgeVariants = cva(
           "hover:bg-accent/90",
         ].join(" "),
         glass: [
-          "border-white/20 bg-white/10 text-foreground",
-          "backdrop-blur-sm",
+          "border-white/20 bg-black/40 text-white",
+          "backdrop-blur-md shadow-lg",
+        ].join(" "),
+        // AI Summary badge - guaranteed contrast on any background
+        aiSummary: [
+          "border-0",
+          "bg-black/70 text-white",
+          "backdrop-blur-md shadow-lg",
+          "[&_svg]:text-amber-400",
         ].join(" "),
         gradient: [
           "border-0",

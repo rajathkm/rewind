@@ -166,7 +166,7 @@ export function ArticleCard({
                 {sourceTitle}
               </span>
               {hasSummary && (
-                <Badge variant="glass" size="sm" className="gap-1">
+                <Badge variant="aiSummary" size="sm" className="gap-1">
                   <Sparkles className="w-3 h-3" />
                   AI Summary
                 </Badge>
@@ -237,7 +237,7 @@ export function ArticleCard({
         {/* AI Summary badge overlay */}
         {hasSummary && (
           <div className="absolute top-3 right-3">
-            <Badge variant="glass" size="sm" className="gap-1 shadow-lg">
+            <Badge variant="aiSummary" size="sm" className="gap-1">
               <Sparkles className="w-3 h-3" />
               AI Summary
             </Badge>

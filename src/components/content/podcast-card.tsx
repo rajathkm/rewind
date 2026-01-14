@@ -236,7 +236,7 @@ export function PodcastCard({
         {/* AI Summary badge */}
         {hasSummary && (
           <div className="absolute top-3 right-3">
-            <Badge variant="glass" size="sm" className="gap-1 shadow-lg">
+            <Badge variant="aiSummary" size="sm" className="gap-1">
               <Sparkles className="w-3 h-3" />
               AI Summary
             </Badge>

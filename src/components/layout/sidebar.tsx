@@ -64,11 +64,11 @@ export function Sidebar({ className }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
+      <div className="min-h-[72px] flex items-center px-4 py-3 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <RewindIcon
-              size={sidebarCollapsed ? "md" : "lg"}
+              size={sidebarCollapsed ? "sm" : "md"}
               className="group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300"
             />
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] blur-lg opacity-40 -z-10 group-hover:opacity-60 transition-opacity" />
