@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import "./globals.css";
 
 // Premium typography stack
@@ -141,7 +142,9 @@ export default function RootLayout({
       <body
         className={`${plusJakarta.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

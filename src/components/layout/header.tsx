@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, PanelLeftClose, PanelLeft, Bell, Plus, Search, WifiOff, Sparkles } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeft, Bell, Plus, Search, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { RewindIcon } from "@/components/ui/rewind-icon";
 import { useUIStore } from "@/stores/ui-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -64,9 +66,7 @@ export function Header({ className }: HeaderProps) {
               </Button>
               <Link href="/" className="flex items-center gap-2.5 group">
                 <div className="relative">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] flex items-center justify-center shadow-lg shadow-primary/25 group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300">
-                    <Sparkles className="h-4.5 w-4.5 text-white" />
-                  </div>
+                  <RewindIcon size="sm" className="group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300" />
                   <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] blur-lg opacity-40 -z-10 group-hover:opacity-60 transition-opacity" />
                 </div>
                 <span className="font-bold text-lg tracking-tight">Rewind</span>
@@ -116,6 +116,9 @@ export function Header({ className }: HeaderProps) {
               </Link>
             </Button>
           )}
+
+          {/* Theme Toggle */}
+          <ThemeToggle className="text-muted-foreground hover:text-foreground" />
 
           <Button
             variant="ghost"

@@ -92,8 +92,7 @@
    COLOR SYSTEM - Dark Mode
    Rich, deep, with luminous accents
    ============================================ */
-@media (prefers-color-scheme: dark) {
-  :root {
+.dark {
     /* Primary - Luminous Teal */
     --primary: 172 55% 55%;
     --primary-hover: 172 60% 60%;
@@ -146,8 +145,12 @@
     /* Sidebar */
     --sidebar-background: 172 20% 8%;
     --sidebar-foreground: 150 10% 88%;
+    --sidebar-primary: 172 55% 55%;
+    --sidebar-primary-foreground: 172 50% 8%;
     --sidebar-accent: 172 18% 16%;
-  }
+    --sidebar-accent-foreground: 150 10% 92%;
+    --sidebar-border: 172 15% 18%;
+    --sidebar-ring: 172 55% 55%;
 }
 
 /* ============================================

@@ -5,16 +5,15 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   Search,
-  BookOpen,
-  Compass,
   Download,
   Clock,
   Settings,
   Plus,
-  Sparkles,
   Library,
   Rss,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { RewindIcon } from "@/components/ui/rewind-icon";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
 import { useOfflineStore } from "@/stores/offline-store";
@@ -68,16 +67,10 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative">
-            <div className={cn(
-              "rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))]",
-              "flex items-center justify-center",
-              "shadow-lg shadow-primary/25",
-              "group-hover:shadow-xl group-hover:shadow-primary/30",
-              "transition-all duration-300",
-              sidebarCollapsed ? "w-10 h-10" : "w-11 h-11"
-            )}>
-              <Sparkles className={cn("text-white", sidebarCollapsed ? "h-5 w-5" : "h-5 w-5")} />
-            </div>
+            <RewindIcon
+              size={sidebarCollapsed ? "md" : "lg"}
+              className="group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300"
+            />
             <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] blur-lg opacity-40 -z-10 group-hover:opacity-60 transition-opacity" />
           </div>
           {!sidebarCollapsed && (
@@ -151,6 +144,18 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border space-y-2">
+        {/* Theme Toggle */}
+        <div className={cn(
+          "flex items-center",
+          sidebarCollapsed ? "justify-center" : "px-3"
+        )}>
+          {sidebarCollapsed ? (
+            <ThemeToggle variant="icon" className="text-sidebar-foreground/70 hover:text-sidebar-foreground" />
+          ) : (
+            <ThemeToggle variant="switch" />
+          )}
+        </div>
+
         <NavLink
           item={{ href: "/settings", icon: Settings, label: "Settings" }}
           pathname={pathname}
