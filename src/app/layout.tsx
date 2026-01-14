@@ -1,32 +1,46 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Premium typography stack
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-serif",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Rewind - Content Aggregator",
+    default: "Rewind — Your Knowledge, Distilled",
     template: "%s | Rewind",
   },
   description:
-    "Your personal content aggregation and summarization companion. Never miss key insights from newsletters, podcasts, and RSS feeds.",
+    "Transform newsletters, podcasts, and articles into actionable insights. AI-powered summaries that respect your time and amplify your understanding.",
   keywords: [
-    "content aggregator",
-    "newsletter",
-    "podcast",
-    "RSS",
-    "summarization",
-    "AI",
-    "reading",
+    "AI summarization",
+    "knowledge management",
+    "podcast summaries",
+    "newsletter aggregator",
+    "RSS reader",
+    "content intelligence",
+    "second brain",
+    "learning tool",
   ],
   authors: [{ name: "Rewind" }],
   creator: "Rewind",
@@ -43,35 +57,64 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: "Rewind - Content Aggregator",
+    title: "Rewind — Your Knowledge, Distilled",
     description:
-      "Your personal content aggregation and summarization companion.",
+      "Transform newsletters, podcasts, and articles into actionable insights. AI-powered summaries that respect your time.",
     siteName: "Rewind",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Rewind - Your Knowledge, Distilled",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Rewind - Content Aggregator",
+    title: "Rewind — Your Knowledge, Distilled",
     description:
-      "Your personal content aggregation and summarization companion.",
+      "Transform newsletters, podcasts, and articles into actionable insights.",
+    images: ["/og-image.png"],
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Rewind",
   },
   applicationName: "Rewind",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    // Add your verification tokens here
+    // google: "your-google-verification-token",
+  },
+  alternates: {
+    canonical: "/",
+  },
+  category: "technology",
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#f8faf9" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0f0d" },
   ],
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({
@@ -82,15 +125,21 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+        <link rel="icon" href="/favicon.ico" sizes="48x48" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192" />
+        <link rel="icon" href="/icons/icon-512.png" type="image/png" sizes="512x512" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* Preconnect to Google Fonts for performance */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${plusJakarta.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
         {children}
       </body>

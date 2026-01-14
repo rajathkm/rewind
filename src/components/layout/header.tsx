@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, PanelLeftClose, PanelLeft, Bell, Plus, Search, WifiOff } from "lucide-react";
+import { Menu, PanelLeftClose, PanelLeft, Bell, Plus, Search, WifiOff, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/stores/ui-store";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -25,21 +25,24 @@ export function Header({ className }: HeaderProps) {
   return (
     <header
       className={cn(
-        "h-14 border-b bg-background/95 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60",
+        "h-16 border-b border-border/50",
+        "bg-background/80 backdrop-blur-xl backdrop-saturate-150",
         "sticky top-0 z-40 safe-area-top",
+        "transition-all duration-300",
         className
       )}
     >
-      <div className="flex items-center justify-between h-full px-4">
+      <div className="flex items-center justify-between h-full px-4 lg:px-6">
         {/* Left section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {isDesktop ? (
             // Desktop: Sidebar toggle
             <Button
               variant="ghost"
-              size="icon"
+              size="icon-sm"
               onClick={toggleSidebar}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="text-muted-foreground hover:text-foreground"
             >
               {sidebarCollapsed ? (
                 <PanelLeft className="h-5 w-5" />
@@ -52,47 +55,87 @@ export function Header({ className }: HeaderProps) {
             <>
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 aria-label="Open menu"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold text-xs">
-                    R
-                  </span>
+              <Link href="/" className="flex items-center gap-2.5 group">
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] flex items-center justify-center shadow-lg shadow-primary/25 group-hover:shadow-xl group-hover:shadow-primary/30 transition-all duration-300">
+                    <Sparkles className="h-4.5 w-4.5 text-white" />
+                  </div>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] blur-lg opacity-40 -z-10 group-hover:opacity-60 transition-opacity" />
                 </div>
-                <span className="font-semibold">Rewind</span>
+                <span className="font-bold text-lg tracking-tight">Rewind</span>
               </Link>
             </>
           )}
         </div>
 
+        {/* Center - Search bar (desktop) */}
+        {isDesktop && (
+          <div className="flex-1 max-w-md mx-8">
+            <Link href="/search" className="block">
+              <div className="flex items-center gap-3 h-11 px-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-border/50 transition-all duration-200 group">
+                <Search className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                  Search content...
+                </span>
+                <kbd className="ml-auto hidden sm:inline-flex h-6 items-center gap-1 rounded-md border bg-background px-2 text-[10px] font-medium text-muted-foreground">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </div>
+            </Link>
+          </div>
+        )}
+
         {/* Right section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {!isOnline && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-              <WifiOff className="h-3 w-3" />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium mr-2 animate-pulse-subtle">
+              <WifiOff className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Offline</span>
             </div>
           )}
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/search" aria-label="Search">
-              <Search className="h-5 w-5" />
-            </Link>
-          </Button>
+
           {!isDesktop && (
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
+              <Link href="/search" aria-label="Search">
+                <Search className="h-5 w-5" />
+              </Link>
+            </Button>
+          )}
+
+          {!isDesktop && (
+            <Button asChild variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
               <Link href="/subscriptions?add=true" aria-label="Add source">
                 <Plus className="h-5 w-5" />
               </Link>
             </Button>
           )}
-          <Button variant="ghost" size="icon" aria-label="Notifications">
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Notifications"
+            className="relative text-muted-foreground hover:text-foreground"
+          >
             <Bell className="h-5 w-5" />
+            {/* Notification indicator */}
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent animate-pulse" />
           </Button>
+
+          {isDesktop && (
+            <Button asChild variant="gradient" size="sm" className="ml-2">
+              <Link href="/subscriptions?add=true">
+                <Plus className="h-4 w-4" />
+                <span>Add Source</span>
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>

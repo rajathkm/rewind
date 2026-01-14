@@ -11,6 +11,9 @@ import {
   Clock,
   Settings,
   Plus,
+  Sparkles,
+  Library,
+  Rss,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -27,12 +30,12 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { href: "/", icon: Home, label: "Home" },
-  { href: "/discover", icon: Compass, label: "Discover" },
+  { href: "/content", icon: Library, label: "Library" },
   { href: "/search", icon: Search, label: "Search" },
 ];
 
 const libraryItems: NavItem[] = [
-  { href: "/subscriptions", icon: BookOpen, label: "Subscriptions" },
+  { href: "/subscriptions", icon: Rss, label: "Sources" },
   { href: "/settings/offline", icon: Download, label: "Downloads" },
   { href: "/history", icon: Clock, label: "History" },
 ];
@@ -54,29 +57,48 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "bg-background flex flex-col border-r transition-all duration-200",
-        sidebarCollapsed ? "w-16" : "w-64",
+        "flex flex-col",
+        "bg-sidebar-background border-r border-sidebar-border",
+        "transition-all duration-300 ease-out",
+        sidebarCollapsed ? "w-[72px]" : "w-72",
         className
       )}
     >
       {/* Logo */}
-      <div className="h-14 flex items-center px-4 border-b">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">R</span>
+      <div className="h-16 flex items-center px-4 border-b border-sidebar-border">
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="relative">
+            <div className={cn(
+              "rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))]",
+              "flex items-center justify-center",
+              "shadow-lg shadow-primary/25",
+              "group-hover:shadow-xl group-hover:shadow-primary/30",
+              "transition-all duration-300",
+              sidebarCollapsed ? "w-10 h-10" : "w-11 h-11"
+            )}>
+              <Sparkles className={cn("text-white", sidebarCollapsed ? "h-5 w-5" : "h-5 w-5")} />
+            </div>
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[hsl(var(--gradient-start))] to-[hsl(var(--gradient-end))] blur-lg opacity-40 -z-10 group-hover:opacity-60 transition-opacity" />
           </div>
           {!sidebarCollapsed && (
-            <span className="font-semibold text-lg">Rewind</span>
+            <div className="flex flex-col">
+              <span className="font-bold text-lg tracking-tight text-sidebar-foreground">Rewind</span>
+              <span className="text-[10px] text-muted-foreground -mt-0.5">Knowledge Distilled</span>
+            </div>
           )}
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-6 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-6 overflow-y-auto scrollbar-thin">
         {/* Add Source Button */}
         <Button
           asChild
-          className={cn("w-full", sidebarCollapsed && "px-0")}
+          variant="gradient"
+          className={cn(
+            "w-full",
+            sidebarCollapsed ? "px-0 aspect-square" : ""
+          )}
           size={sidebarCollapsed ? "icon" : "default"}
         >
           <Link href="/subscriptions?add=true">
@@ -87,6 +109,11 @@ export function Sidebar({ className }: SidebarProps) {
 
         {/* Main Navigation */}
         <div className="space-y-1">
+          {!sidebarCollapsed && (
+            <h3 className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Navigate
+            </h3>
+          )}
           {mainNavItems.map((item) => (
             <NavLink
               key={item.href}
@@ -100,7 +127,7 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Library Section */}
         <div>
           {!sidebarCollapsed && (
-            <h3 className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
               Library
             </h3>
           )}
@@ -123,7 +150,7 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t">
+      <div className="p-3 border-t border-sidebar-border space-y-2">
         <NavLink
           item={{ href: "/settings", icon: Settings, label: "Settings" }}
           pathname={pathname}
@@ -134,12 +161,21 @@ export function Sidebar({ className }: SidebarProps) {
         {!isOnline && (
           <div
             className={cn(
-              "mt-3 flex items-center gap-2 text-sm text-amber-500",
-              sidebarCollapsed && "justify-center"
+              "flex items-center gap-2 px-3 py-2 rounded-xl bg-warning/10",
+              "text-sm font-medium text-warning",
+              sidebarCollapsed && "justify-center px-2"
             )}
           >
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            {!sidebarCollapsed && <span>Offline</span>}
+            <div className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+            {!sidebarCollapsed && <span>Offline Mode</span>}
+          </div>
+        )}
+
+        {/* Version/Status indicator */}
+        {!sidebarCollapsed && isOnline && (
+          <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground/60">
+            <div className="status-dot online" />
+            <span>Connected</span>
           </div>
         )}
       </div>
@@ -163,24 +199,39 @@ function NavLink({ item, pathname, collapsed, badge }: NavLinkProps) {
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-        collapsed && "justify-center px-0",
+        "flex items-center gap-3 px-3 py-2.5 rounded-xl",
+        "text-sm font-medium",
+        "transition-all duration-200",
+        "group",
+        collapsed && "justify-center px-2.5",
         isActive
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? [
+              "bg-sidebar-primary/10 text-sidebar-primary",
+              "shadow-sm shadow-sidebar-primary/5",
+            ].join(" ")
+          : [
+              "text-sidebar-foreground/70",
+              "hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            ].join(" ")
       )}
       title={collapsed ? item.label : undefined}
     >
-      <item.icon className="w-5 h-5 flex-shrink-0" />
+      <item.icon className={cn(
+        "w-5 h-5 flex-shrink-0 transition-transform duration-200",
+        !isActive && "group-hover:scale-110"
+      )} />
       {!collapsed && (
         <>
           <span className="flex-1">{item.label}</span>
           {badge !== undefined && (
-            <span className="px-2 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+            <span className="px-2 py-0.5 text-[10px] font-semibold bg-sidebar-primary text-sidebar-primary-foreground rounded-full shadow-sm">
               {badge}
             </span>
           )}
         </>
+      )}
+      {isActive && collapsed && (
+        <span className="absolute left-0 w-1 h-8 rounded-r-full bg-sidebar-primary" />
       )}
     </Link>
   );

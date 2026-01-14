@@ -2,15 +2,17 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Rewind - Content Aggregator",
+    name: "Rewind — Your Knowledge, Distilled",
     short_name: "Rewind",
-    description: "Your personal content aggregation and summarization companion. Never miss key insights from newsletters, podcasts, and RSS feeds.",
+    description: "Transform newsletters, podcasts, and articles into actionable insights. AI-powered summaries that respect your time and amplify your understanding.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a0a0a",
-    theme_color: "#6366f1",
+    background_color: "#0a0f0d",
+    theme_color: "#1a9a8a",
     orientation: "portrait-primary",
-    categories: ["news", "productivity", "education"],
+    categories: ["news", "productivity", "education", "utilities"],
+    dir: "ltr",
+    lang: "en",
     icons: [
       {
         src: "/icons/icon-72.png",
@@ -66,6 +68,12 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
         purpose: "maskable",
       },
+      {
+        src: "/favicon.svg",
+        sizes: "any",
+        type: "image/svg+xml",
+        purpose: "any",
+      },
     ],
     screenshots: [
       {
@@ -73,28 +81,34 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "750x1334",
         type: "image/png",
         form_factor: "narrow",
-        label: "Home screen with recent summaries",
+        label: "Home screen with AI-powered summaries",
       },
       {
         src: "/screenshots/desktop-home.png",
         sizes: "1920x1080",
         type: "image/png",
         form_factor: "wide",
-        label: "Desktop view with sidebar navigation",
+        label: "Desktop view with elegant sidebar navigation",
       },
     ],
     shortcuts: [
       {
-        name: "Search",
+        name: "Search Content",
         short_name: "Search",
         url: "/search",
-        description: "Search your content library",
+        description: "Search your knowledge library",
       },
       {
-        name: "Subscriptions",
-        short_name: "Subs",
+        name: "Content Library",
+        short_name: "Library",
+        url: "/content",
+        description: "Browse all your content",
+      },
+      {
+        name: "Sources",
+        short_name: "Sources",
         url: "/subscriptions",
-        description: "Manage your subscriptions",
+        description: "Manage your content sources",
       },
       {
         name: "Add Source",
