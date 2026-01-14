@@ -109,6 +109,10 @@ export async function GET(request: NextRequest) {
         isSaved: item.user_content_state?.[0]?.is_saved || false,
         hasSummary: item.summaries && item.summaries.length > 0,
         playbackProgress: item.user_content_state?.[0]?.read_progress || 0,
+        // YouTube-specific fields
+        youtubeVideoId: item.youtube_video_id,
+        youtubeChannelName: item.youtube_channel_name,
+        youtubeThumbnailUrl: item.youtube_thumbnail_url,
       }));
 
       // Apply client-side filters for saved/unread if needed
