@@ -1,6 +1,7 @@
 "use client";
 
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { useAutoSync } from "@/hooks/use-auto-sync";
 import { useMiniPlayerVisible } from "@/stores/audio-store";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
@@ -18,6 +19,9 @@ export function ResponsiveShell({ children }: ResponsiveShellProps) {
   const isDesktop = useIsDesktop();
   const miniPlayerVisible = useMiniPlayerVisible();
   const { sidebarCollapsed } = useUIStore();
+
+  // Auto-sync content in background
+  useAutoSync();
 
   return (
     <div className="min-h-screen bg-background">
