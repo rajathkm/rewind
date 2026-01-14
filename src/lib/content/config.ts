@@ -4,8 +4,9 @@
  */
 
 // Minimum word count thresholds for summarization
-export const MIN_WORDS_FOR_SUMMARY = 300;
-export const MIN_WORDS_FOR_PODCAST_SUMMARY = 500;
+// Lowered to allow more content to be summarized (RSS often has truncated content)
+export const MIN_WORDS_FOR_SUMMARY = 100;
+export const MIN_WORDS_FOR_PODCAST_SUMMARY = 200;
 
 // Reading speed for time estimation (words per minute)
 export const READING_SPEED_WPM = 200;
