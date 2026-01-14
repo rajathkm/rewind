@@ -56,13 +56,10 @@ export async function POST(request: NextRequest) {
     // Sync all sources
     const summary = await syncAllSources();
 
-    // Auto-summarize new content (limit to prevent timeout)
-    let summarizeResult = null;
-    if (summary.totalItemsAdded > 0) {
-      summarizeResult = await autoSummarizePendingContent({
-        limit: Math.min(summary.totalItemsAdded, 5),
-      });
-    }
+    // Auto-summarize pending content (always run to process backlog)
+    const summarizeResult = await autoSummarizePendingContent({
+      limit: 10,
+    });
 
     return NextResponse.json({
       success: true,
@@ -95,13 +92,10 @@ export async function GET(request: NextRequest) {
   if (trigger === "true" && secret === cronSecret) {
     const summary = await syncAllSources();
 
-    // Auto-summarize new content
-    let summarizeResult = null;
-    if (summary.totalItemsAdded > 0) {
-      summarizeResult = await autoSummarizePendingContent({
-        limit: Math.min(summary.totalItemsAdded, 5),
-      });
-    }
+    // Auto-summarize pending content (always run to process backlog)
+    const summarizeResult = await autoSummarizePendingContent({
+      limit: 10,
+    });
 
     return NextResponse.json({
       success: true,
