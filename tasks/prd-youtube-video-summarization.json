@@ -1,0 +1,276 @@
+{
+  "project": "Rewind",
+  "branchName": "ralph/youtube-video-summarization",
+  "description": "Add YouTube video summarization support - enable users to manually submit YouTube video URLs, extract transcripts from captions, and generate podcast-style summaries with speakers and timeline information",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Database migration for YouTube video support",
+      "description": "As a developer, I need to add youtube_video as a new content type to support storing YouTube video content.",
+      "acceptanceCriteria": [
+        "Create migration file `supabase/migrations/004_youtube_video_support.sql`",
+        "Add 'youtube_video' value to content_type enum using ALTER TYPE",
+        "Add `video_id` (text, nullable) to `content_items` table for YouTube video ID",
+        "Add `channel_name` (text, nullable) to `content_items` table",
+        "Add `channel_id` (text, nullable) to `content_items` table",
+        "Add `transcript_source` (text, nullable) to `content_items` - values: 'manual', 'auto-generated'",
+        "Add index on `content_type` column for efficient queries",
+        "npm run typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Install youtube-transcript and create YouTube config",
+      "description": "As a developer, I need a library to extract YouTube transcripts and configuration constants.",
+      "acceptanceCriteria": [
+        "Run `npm install youtube-transcript` to add transcript extraction library",
+        "Create `src/lib/youtube/config.ts` with constants",
+        "Add YOUTUBE_URL_PATTERNS array with regex patterns for youtube.com/watch and youtu.be URLs",
+        "Add function `isValidYouTubeUrl(url: string): boolean` that validates YouTube URLs",
+        "Add function `extractVideoId(url: string): string | null` that extracts video ID from URL",
+        "Export all constants and functions",
+        "npm run typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Create YouTube transcript extractor",
+      "description": "As a developer, I need a utility to fetch transcripts from YouTube videos using available captions.",
+      "acceptanceCriteria": [
+        "Create `src/lib/youtube/transcript.ts`",
+        "Export async function `fetchYouTubeTranscript(videoId: string): Promise<TranscriptResult | null>`",
+        "TranscriptResult interface includes: { text: string; segments: TranscriptSegment[]; source: 'manual' | 'auto-generated' }",
+        "TranscriptSegment interface includes: { text: string; start: number; duration: number }",
+        "Prioritize manually uploaded captions over auto-generated",
+        "Prefer English language captions when multiple languages available",
+        "Combine all segments into a single text string with timestamps",
+        "Return null on any error (video not found, no captions, etc.)",
+        "Log errors with console.error including video ID and reason",
+        "npm run typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create YouTube metadata fetcher",
+      "description": "As a developer, I need a utility to fetch video metadata (title, channel, duration, thumbnail) from YouTube.",
+      "acceptanceCriteria": [
+        "Create `src/lib/youtube/metadata.ts`",
+        "Export async function `fetchYouTubeMetadata(videoId: string): Promise<VideoMetadata | null>`",
+        "VideoMetadata interface includes: { title: string; channelName: string; channelId: string; duration: number; thumbnailUrl: string; publishedAt: string; description: string }",
+        "Use YouTube oEmbed API or scrape from page if API not available",
+        "Return null on any error with appropriate logging",
+        "npm run typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create YouTube video processor",
+      "description": "As a developer, I need a function that processes a YouTube URL and stores the content in the database.",
+      "acceptanceCriteria": [
+        "Create `src/lib/youtube/processor.ts`",
+        "Export async function `processYouTubeVideo(url: string, userId?: string): Promise<ProcessResult>`",
+        "ProcessResult interface includes: { success: boolean; contentId?: string; error?: string }",
+        "Validate URL using functions from config.ts",
+        "Extract video ID from URL",
+        "Fetch transcript using transcript.ts",
+        "Fetch metadata using metadata.ts",
+        "Return descriptive error if transcript not available (e.g., 'Video has no captions available')",
+        "Calculate word count from transcript",
+        "Create content_items record with content_type='youtube_video'",
+        "Set processing_status to 'pending' for summarization",
+        "Store video_id, channel_name, channel_id, transcript_source in record",
+        "npm run typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add YouTube video prompt to summarization",
+      "description": "As a user, I want YouTube videos to be summarized with podcast-style output including speakers and timeline.",
+      "acceptanceCriteria": [
+        "In `src/lib/summarization/prompts.ts`, add YOUTUBE_VIDEO_PROMPT constant",
+        "Prompt should request same structure as PODCAST_PROMPT (headline, tldr, fullSummary, keyPoints, keyTakeaways, speakers, timeline)",
+        "Include video title, channel name, and duration in prompt context",
+        "Request timestamp/chapter breakdown in summary output",
+        "Request speaker identification when multiple speakers detected",
+        "npm run typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Integrate YouTube video type into summarizer",
+      "description": "As a developer, I need the summarizer to handle youtube_video content type using the appropriate prompt.",
+      "acceptanceCriteria": [
+        "In `src/lib/summarization/summarizer.ts`, import YOUTUBE_VIDEO_PROMPT",
+        "Add case for 'youtube_video' content type in summarization logic",
+        "Use YOUTUBE_VIDEO_PROMPT for youtube_video content",
+        "Pass video title, channel name, and duration to prompt formatting",
+        "Ensure output schema supports speakers and timeline fields",
+        "npm run typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create POST /api/content/youtube endpoint",
+      "description": "As a user, I want to submit a YouTube URL via API to trigger video processing and summarization.",
+      "acceptanceCriteria": [
+        "Create `src/app/api/content/youtube/route.ts`",
+        "Export POST handler that accepts { url: string } in request body",
+        "Validate URL is a valid YouTube URL",
+        "Call processYouTubeVideo from processor.ts",
+        "On success: return { success: true, contentId: string, status: 'processing' }",
+        "On failure: return { success: false, error: string } with appropriate status code",
+        "Return 400 for invalid URL format",
+        "Return 422 for valid URL but unprocessable video (no captions, private, etc.)",
+        "npm run typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Update content API to return YouTube video fields",
+      "description": "As a developer, I need existing content endpoints to return YouTube-specific fields for video content.",
+      "acceptanceCriteria": [
+        "In `src/app/api/content/[id]/route.ts`, include video_id, channel_name, channel_id, transcript_source in response",
+        "In `src/app/api/content/route.ts`, include YouTube fields in list response for youtube_video content type",
+        "Transform snake_case to camelCase (videoId, channelName, channelId, transcriptSource)",
+        "Include these fields only when content_type is 'youtube_video'",
+        "npm run typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create YouTube URL input component",
+      "description": "As a user, I want a UI component to paste YouTube URLs for summarization.",
+      "acceptanceCriteria": [
+        "Create `src/components/content/youtube-input.tsx`",
+        "Include text input field with placeholder 'Paste YouTube URL...'",
+        "Add paste button/icon for easy clipboard paste",
+        "Real-time URL validation with visual feedback (green check for valid, red X for invalid)",
+        "Submit button labeled 'Summarize Video'",
+        "Show loading spinner during API call",
+        "Display error messages inline below input",
+        "On success, show 'Video submitted! Summary will appear shortly.'",
+        "Export YouTubeInput component",
+        "npm run typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add YouTube submission to content page",
+      "description": "As a user, I want to access YouTube URL submission from the main interface.",
+      "acceptanceCriteria": [
+        "In appropriate page (e.g., home or dedicated add content page), add YouTubeInput component",
+        "Add tab or section for 'YouTube' alongside existing content types",
+        "Style consistently with existing UI patterns",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create YouTubeVideoCard component",
+      "description": "As a user, I want YouTube videos to display distinctly in my content feed with video-specific information.",
+      "acceptanceCriteria": [
+        "Create `src/components/content/youtube-video-card.tsx`",
+        "Display video thumbnail prominently with play icon overlay",
+        "Show duration badge on thumbnail (formatted as MM:SS or HH:MM:SS)",
+        "Display video title as card heading",
+        "Show channel name below title with YouTube icon",
+        "Include 'Watch on YouTube' link icon",
+        "Style card to be visually distinct from ArticleCard and PodcastCard",
+        "Accept same props as other cards (processingStatus, etc.)",
+        "npm run typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Integrate YouTubeVideoCard into content feed",
+      "description": "As a user, I want to see my YouTube videos in the home feed alongside articles and podcasts.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/home/page.tsx`, update query to include youtube_video content type",
+        "Add conditional rendering for YouTubeVideoCard when content_type is 'youtube_video'",
+        "Pass required props (videoId, channelName, thumbnailUrl, duration, processingStatus)",
+        "In search results, render YouTubeVideoCard for youtube_video type",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create YouTube video detail view",
+      "description": "As a user, I want to view the full summary of a YouTube video with video-specific UI.",
+      "acceptanceCriteria": [
+        "In `src/app/(main)/content/[id]/page.tsx`, add handling for youtube_video content type",
+        "Display video thumbnail as hero image with play button",
+        "Show 'Watch on YouTube' button linking to original video",
+        "Display channel name with link to channel",
+        "Show video duration prominently",
+        "Render summary with speakers section (if available)",
+        "Render timeline/chapters section with timestamps (if available)",
+        "Timestamps should display formatted time (e.g., '5:30', '1:02:45')",
+        "npm run typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add error handling for YouTube processing",
+      "description": "As a user, I want clear error messages when a YouTube video cannot be processed.",
+      "acceptanceCriteria": [
+        "In processor.ts, return specific error messages for common failure cases",
+        "Handle 'Video not found' (deleted or private video)",
+        "Handle 'Captions not available' (video has no captions)",
+        "Handle 'Age-restricted content' (video requires sign-in)",
+        "Handle 'Region-restricted content' (video not available in region)",
+        "Handle network/timeout errors with generic 'Failed to fetch video' message",
+        "Log detailed errors server-side for debugging",
+        "Return user-friendly error messages to client",
+        "npm run typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

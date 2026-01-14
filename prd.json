@@ -1,0 +1,157 @@
+{
+  "name": "Product Requirements Document: YouTube Video Summarization",
+  "description": "### Problem Statement\nUsers currently can summarize articles and podcasts in Rewind, but cannot process YouTube video content. YouTube is a major source of educational, informational, and entertainment content that users want to capture and reference later.",
+  "branchName": "feature/product-requirements-document-youtube-video-summarization",
+  "userStories": [
+    {
+      "id": "US-1",
+      "title": "Submit YouTube Video for Summarization",
+      "description": "Submit YouTube Video for Summarization",
+      "acceptanceCriteria": [
+        "User can paste a valid YouTube URL (youtube.com/watch, youtu.be formats)",
+        "System validates the URL before processing",
+        "User sees processing status while video is being summarized",
+        "Summary appears in user's content feed upon completion"
+      ],
+      "priority": 1,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-2",
+      "title": "View YouTube Video Summary",
+      "description": "View YouTube Video Summary",
+      "acceptanceCriteria": [
+        "Summary displays in podcast-style format with:",
+        "Link to original YouTube video is accessible",
+        "Content type is clearly identified as \"YouTube Video\""
+      ],
+      "priority": 2,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-3",
+      "title": "Handle Videos Without Captions",
+      "description": "Handle Videos Without Captions",
+      "acceptanceCriteria": [
+        "Clear error message when video has no captions available",
+        "Suggestion to try a different video",
+        "Failed attempts do not appear in content feed"
+      ],
+      "priority": 3,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-1",
+      "title": "YouTube URL Parsing",
+      "description": "- Support URL formats: - `https://www.youtube.com/watch?v=VIDEO_ID` - `https://youtu.be/VIDEO_ID` - `https://youtube.com/watch?v=VIDEO_ID&t=123` (with timestamps) - Extract video ID from URL for API calls",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-2",
+      "title": "Transcript Extraction",
+      "description": "- Use YouTube Data API or transcript extraction library (e.g., `youtube-transcript-api`) - Priority order for caption tracks: 1. Manually uploaded captions (any language, prefer English) 2. Auto-generated captions - Handle videos with no captions gracefully (error state) - Store raw transcript for potential re-processing",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-3",
+      "title": "Content Processing Pipeline Integration",
+      "description": "- Create new content type: `youtube_video` - Extend existing `ContentProcessor` to handle video transcripts - Use same AI summarization prompts as podcasts (adapted for video context) - Store video metadata: - Video ID - Title - Channel name - Channel ID - Duration - Publish date - Thumbnail URL",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-4",
+      "title": "Database Schema Updates",
+      "description": "- Add `youtube_video` to content type enum - Add video-specific fields to content table or create related table: - `video_id` (YouTube video ID) - `channel_name` - `channel_id` - `duration_seconds` - `transcript_source` (manual/auto-generated)",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-5",
+      "title": "API Endpoints",
+      "description": "- `POST /api/content/youtube` - Submit YouTube URL for processing - Request: `{ url: string }` - Response: `{ contentId: string, status: 'processing' | 'completed' | 'failed' }` - Extend existing content endpoints to return YouTube video summaries",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "TR-6",
+      "title": "Rate Limiting & Error Handling",
+      "description": "- Implement rate limiting for YouTube API calls - Handle common errors: - Video not found (deleted/private) - Captions disabled - Age-restricted content - Region-restricted content - Retry logic for transient failures",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "UX-1",
+      "title": "URL Submission",
+      "description": "- Add YouTube option to content submission interface - URL input field with paste support - Real-time URL validation with visual feedback - Processing indicator while video is being summarized",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "UX-2",
+      "title": "Content Display",
+      "description": "- YouTube videos appear in content feed with distinct visual indicator - Video thumbnail displayed prominently - Duration badge on thumbnail - Channel name displayed below title - \"Watch on YouTube\" link in summary view",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "UX-3",
+      "title": "Summary Format",
+      "description": "- Match existing podcast summary structure: - Headline/Title - TLDR (2-3 sentences) - Key Points (bulleted list) - Key Takeaways (actionable insights) - Speakers (if multiple detected) - Timeline/Chapters (with approximate timestamps)",
+      "acceptanceCriteria": [],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-01-13T09:49:55.795Z",
+    "version": "1.0.0",
+    "updatedAt": "2026-01-13T10:34:47.927Z"
+  }
+}
