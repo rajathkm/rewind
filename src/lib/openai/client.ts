@@ -36,12 +36,16 @@ class OpenAIClient {
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log(`[OpenAI Client] Initializing - API key is ${apiKey ? 'SET' : 'NOT SET'}`);
+
     if (!apiKey) {
+      console.error("[OpenAI Client] OPENAI_API_KEY environment variable is required");
       throw new Error("OPENAI_API_KEY environment variable is required");
     }
 
     this.client = new OpenAI({ apiKey });
     this.defaultModel = (process.env.OPENAI_MODEL as SupportedModel) || "gpt-4o";
+    console.log(`[OpenAI Client] Initialized with model: ${this.defaultModel}`);
   }
 
   async createCompletion(
@@ -76,6 +80,14 @@ class OpenAIClient {
     // Wait for rate limit capacity
     await rateLimiter.waitForCapacity(estimatedTotalTokens);
 
+    console.log(`[OpenAI Client] Sending request:`, {
+      model,
+      operation: options.operation,
+      estimatedInputTokens,
+      maxTokens: options.maxTokens,
+      jsonMode: options.jsonMode,
+    });
+
     try {
       const response = await this.client.chat.completions.create({
         model,
@@ -89,6 +101,14 @@ class OpenAIClient {
       const content = choice?.message?.content || "";
       const inputTokens = response.usage?.prompt_tokens || countTokens(inputText);
       const outputTokens = response.usage?.completion_tokens || countTokens(content);
+
+      console.log(`[OpenAI Client] Response received:`, {
+        model,
+        inputTokens,
+        outputTokens,
+        finishReason: choice?.finish_reason,
+        contentLength: content.length,
+      });
 
       // Record usage
       rateLimiter.recordRequest(inputTokens + outputTokens);
@@ -108,7 +128,9 @@ class OpenAIClient {
         finishReason: choice?.finish_reason || null,
       };
     } catch (error) {
+      console.error(`[OpenAI Client] API error:`, error);
       if (error instanceof OpenAI.RateLimitError) {
+        console.log(`[OpenAI Client] Rate limited, waiting 60s before retry`);
         // Wait and retry on rate limit
         await new Promise((resolve) => setTimeout(resolve, 60000));
         return this.createCompletion(messages, options);

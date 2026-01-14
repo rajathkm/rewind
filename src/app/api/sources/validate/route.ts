@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 
 const parser = new Parser({
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout for large feeds
   customFields: {
     feed: ["image", "itunes:image", "itunes:author"],
     item: ["itunes:duration", "enclosure", "itunes:image"],
@@ -10,32 +10,40 @@ const parser = new Parser({
 });
 
 // Helper to parse feed with timeout
+// Note: Large feeds like Tim Ferriss (29MB, 851 episodes) need more time
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function parseWithTimeout(url: string, timeoutMs = 8000): Promise<any> {
+async function parseWithTimeout(url: string, timeoutMs = 30000): Promise<any> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     // First fetch the feed content
+    console.log(`[Validate] Fetching URL: ${url}`);
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
         "User-Agent": "Rewind/1.0 (RSS Feed Reader)",
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml",
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
       },
     });
 
+    console.log(`[Validate] Response status: ${response.status}, content-type: ${response.headers.get("content-type")}`);
+
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const text = await response.text();
     clearTimeout(timeoutId);
+    console.log(`[Validate] Received ${text.length} bytes, first 200 chars: ${text.slice(0, 200)}`);
 
     // Parse the fetched content
-    return await parser.parseString(text);
+    const parsed = await parser.parseString(text);
+    console.log(`[Validate] Parsed successfully, title: ${parsed.title}`);
+    return parsed;
   } catch (error) {
     clearTimeout(timeoutId);
+    console.error(`[Validate] Parse error for ${url}:`, error);
     throw error;
   }
 }
@@ -85,7 +93,7 @@ export async function POST(request: NextRequest) {
     console.log(`[Validate] Attempting to parse URL: ${feedUrl}`);
     try {
       const feed = await parseWithTimeout(feedUrl);
-      console.log(`[Validate] Successfully parsed feed: ${feed.title}`);
+      console.log(`[Validate] Successfully parsed feed: ${feed.title}, items: ${feed.items?.length || 0}`);
 
       // Determine if it's a podcast by checking for audio enclosures
       const hasPodcastItems = feed.items.some(
@@ -158,7 +166,7 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
 
     console.log(`[Validate] Trying common path: ${feedUrl}`);
     try {
-      const feed = await parseWithTimeout(feedUrl, 5000); // 5 second timeout per attempt
+      const feed = await parseWithTimeout(feedUrl, 15000); // 5 second timeout per attempt
       if (feed && feed.items && feed.items.length > 0) {
         console.log(`[Validate] Found feed at: ${feedUrl} with ${feed.items.length} items`);
         const hasPodcastItems = feed.items.some(
@@ -225,7 +233,7 @@ async function discoverFeedFromUrl(url: string): Promise<ValidatedFeed | null> {
         // Try to parse the discovered feed
         console.log(`[Validate] Found link tag, trying: ${feedUrl}`);
         try {
-          const feed = await parseWithTimeout(feedUrl, 5000);
+          const feed = await parseWithTimeout(feedUrl, 15000);
           const hasPodcastItems = feed.items.some(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (item: any) => item.enclosure?.type?.includes("audio")

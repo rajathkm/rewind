@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useAudioStore } from "@/stores/audio-store";
 
 /**
@@ -14,6 +14,7 @@ import { useAudioStore } from "@/stores/audio-store";
 export function AudioProvider() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const animationRef = useRef<number | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const {
     currentEpisode,
@@ -29,8 +30,15 @@ export function AudioProvider() {
     pause,
   } = useAudioStore();
 
+  // Mark as mounted (client-side only)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Create audio element on mount
   useEffect(() => {
+    if (!isMounted) return;
+
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "metadata";
@@ -39,16 +47,18 @@ export function AudioProvider() {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = "";
+        // Don't set empty src to avoid error
+        audioRef.current.removeAttribute("src");
       }
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, []);
+  }, [isMounted]);
 
   // Update audio source when episode changes
   useEffect(() => {
+    if (!isMounted) return;
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -59,14 +69,17 @@ export function AudioProvider() {
         audio.load();
       }
     } else {
-      audio.src = "";
+      // Don't set empty src - just remove attribute to avoid error
+      audio.removeAttribute("src");
+      audio.load(); // Reset the audio element
     }
-  }, [currentEpisode?.audioUrl]);
+  }, [currentEpisode?.audioUrl, isMounted]);
 
   // Handle play/pause
   useEffect(() => {
+    if (!isMounted) return;
     const audio = audioRef.current;
-    if (!audio || !currentEpisode) return;
+    if (!audio || !currentEpisode?.audioUrl) return;
 
     if (isPlaying) {
       const playPromise = audio.play();
@@ -79,32 +92,31 @@ export function AudioProvider() {
     } else {
       audio.pause();
     }
-  }, [isPlaying, currentEpisode, setError]);
+  }, [isPlaying, currentEpisode?.audioUrl, setError, isMounted]);
 
   // Sync seek position from store to audio
   useEffect(() => {
+    if (!isMounted) return;
     const audio = audioRef.current;
-    if (!audio || !currentEpisode) return;
+    if (!audio || !currentEpisode?.audioUrl) return;
 
     // Only seek if the difference is significant (> 1 second)
     if (Math.abs(audio.currentTime - currentTime) > 1) {
       audio.currentTime = currentTime;
     }
-  }, [currentTime, currentEpisode]);
+  }, [currentTime, currentEpisode?.audioUrl, isMounted]);
 
   // Update volume
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
+    if (!isMounted || !audioRef.current) return;
+    audioRef.current.volume = volume;
+  }, [volume, isMounted]);
 
   // Update playback rate
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
+    if (!isMounted || !audioRef.current) return;
+    audioRef.current.playbackRate = playbackRate;
+  }, [playbackRate, isMounted]);
 
   // Time update animation loop
   const updateTime = useCallback(() => {
@@ -137,6 +149,7 @@ export function AudioProvider() {
 
   // Setup audio event listeners
   useEffect(() => {
+    if (!isMounted) return;
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -153,9 +166,12 @@ export function AudioProvider() {
     };
 
     const handleError = () => {
-      const errorMessage = audio.error?.message || "Audio playback error";
-      console.error("Audio error:", errorMessage);
-      setError(errorMessage);
+      // Only log error if there's actually a source set
+      if (audio.src && audio.src !== window.location.href) {
+        const errorMessage = audio.error?.message || "Audio playback error";
+        console.error("Audio error:", errorMessage);
+        setError(errorMessage);
+      }
     };
 
     const handleEnded = () => {
@@ -176,7 +192,7 @@ export function AudioProvider() {
       audio.removeEventListener("error", handleError);
       audio.removeEventListener("ended", handleEnded);
     };
-  }, [setDuration, setBuffering, setError, pause]);
+  }, [setDuration, setBuffering, setError, pause, isMounted]);
 
   // This component doesn't render anything visible
   return null;

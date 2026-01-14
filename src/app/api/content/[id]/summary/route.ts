@@ -49,7 +49,11 @@ export async function POST(
     const supabase = await createClient();
     const { id } = await params;
 
+    console.log(`[Summary API] POST /api/content/${id}/summary - Starting`);
+    console.log(`[Summary API] OPENAI_API_KEY is ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+
     const { data: { user } } = await supabase.auth.getUser();
+    console.log(`[Summary API] User authenticated: ${!!user}`);
 
     // Use admin client for development mode
     const db = user ? supabase : createAdminClient();
@@ -62,6 +66,7 @@ export async function POST(
       .single();
 
     if (existingSummary) {
+      console.log(`[Summary API] Summary already exists for content ${id}`);
       return NextResponse.json(
         { error: "Summary already exists" },
         { status: 409 }
@@ -69,6 +74,7 @@ export async function POST(
     }
 
     // Get content item
+    console.log(`[Summary API] Fetching content item ${id}`);
     const { data: content, error: contentError } = await db
       .from("content_items")
       .select(
@@ -89,17 +95,31 @@ export async function POST(
       .single();
 
     if (contentError) {
+      console.error(`[Summary API] Content not found: ${contentError.message}`);
       return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
+
+    console.log(`[Summary API] Content found:`, {
+      id: content.id,
+      title: content.title,
+      content_type: content.content_type,
+      hasExtractedText: !!content.extracted_text,
+      extractedTextLength: content.extracted_text?.length || 0,
+      hasTranscript: !!content.transcript,
+      transcriptLength: content.transcript?.length || 0,
+    });
 
     // Get content to summarize - prefer transcript for audio, otherwise use extracted_text
     const textContent = content.transcript || content.extracted_text;
     if (!textContent) {
+      console.error(`[Summary API] No content available - both extracted_text and transcript are empty`);
       return NextResponse.json(
         { error: "No content available to summarize" },
         { status: 400 }
       );
     }
+
+    console.log(`[Summary API] Using ${content.transcript ? 'transcript' : 'extracted_text'} for summarization (${textContent.length} chars)`);
 
     // Update processing status
     await db
@@ -116,10 +136,18 @@ export async function POST(
 
     try {
       // Generate summary
+      console.log(`[Summary API] Calling summarizeContent with contentType=${usePodcastFormat ? 'podcast' : 'article'}`);
       const result = await summarizeContent(textContent, {
         title: content.title,
         contentType: usePodcastFormat ? "podcast" : "article",
         duration: content.duration_seconds,
+      });
+
+      console.log(`[Summary API] Summarization complete:`, {
+        headline: result.summary.headline?.substring(0, 50),
+        tokensUsed: result.tokensUsed,
+        processingTimeMs: result.processingTimeMs,
+        cost: result.cost,
       });
 
       // Store summary
@@ -162,6 +190,7 @@ export async function POST(
         tokensUsed: result.tokensUsed,
       });
     } catch (summarizeError) {
+      console.error(`[Summary API] Summarization failed:`, summarizeError);
       // Update processing status to failed
       await db
         .from("content_items")
@@ -171,12 +200,11 @@ export async function POST(
       throw summarizeError;
     }
   } catch (error) {
-    console.error("Error generating summary:", error);
+    console.error("[Summary API] Error generating summary:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to generate summary";
+    console.error(`[Summary API] Returning error: ${errorMessage}`);
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to generate summary",
-      },
+      { error: errorMessage },
       { status: 500 }
     );
   }

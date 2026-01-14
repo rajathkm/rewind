@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { limit = 10, sourceId } = body;
 
+    console.log(`[Summarize API] Starting summarization with limit=${limit}, sourceId=${sourceId || 'all'}`);
+    console.log(`[Summarize API] OPENAI_API_KEY is ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+
     const result = await autoSummarizePendingContent({ limit, sourceId });
+
+    console.log(`[Summarize API] Result:`, JSON.stringify(result, null, 2));
 
     return NextResponse.json({
       success: true,
@@ -59,7 +64,12 @@ export async function GET(request: NextRequest) {
   // If trigger=true and secret matches, run summarization
   if (trigger === "true" && secret === cronSecret) {
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
+    console.log(`[Summarize API] GET trigger with limit=${limit}`);
+    console.log(`[Summarize API] OPENAI_API_KEY is ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`);
+
     const result = await autoSummarizePendingContent({ limit });
+
+    console.log(`[Summarize API] Result:`, JSON.stringify(result, null, 2));
 
     return NextResponse.json({
       success: true,

@@ -80,7 +80,7 @@ export function SummaryDisplay({
       </Card>
 
       {/* Key Takeaways */}
-      {summary.keyTakeaways.length > 0 && (
+      {summary.keyTakeaways && summary.keyTakeaways.length > 0 && (
         <Card>
           <CardHeader
             className="cursor-pointer py-3"
@@ -170,7 +170,7 @@ export function SummaryDisplay({
                 <p key={i}>{paragraph}</p>
               ))}
             </div>
-            {summary.keyPoints.length > 0 && (
+            {summary.keyPoints && summary.keyPoints.length > 0 && (
               <div className="mt-4 pt-4 border-t">
                 <h4 className="font-medium mb-2 text-sm">Key Points</h4>
                 <ul className="space-y-1">
@@ -191,7 +191,7 @@ export function SummaryDisplay({
       </Card>
 
       {/* Related Ideas */}
-      {summary.relatedIdeas.length > 0 && (
+      {summary.relatedIdeas && summary.relatedIdeas.length > 0 && (
         <Card>
           <CardHeader
             className="cursor-pointer py-3"
@@ -246,7 +246,7 @@ export function SummaryDisplay({
       )}
 
       {/* Allied Trivia */}
-      {summary.alliedTrivia.length > 0 && (
+      {summary.alliedTrivia && summary.alliedTrivia.length > 0 && (
         <Card>
           <CardHeader
             className="cursor-pointer py-3"

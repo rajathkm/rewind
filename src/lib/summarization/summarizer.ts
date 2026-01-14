@@ -35,6 +35,14 @@ export async function summarizeContent(
 ): Promise<SummarizationResult> {
   const startTime = Date.now();
   const tokenCount = countTokens(content);
+
+  console.log(`[Summarizer] Starting summarization:`, {
+    contentLength: content.length,
+    tokenCount,
+    contentType: options.contentType,
+    title: options.title?.substring(0, 50),
+  });
+
   const client = getOpenAIClient();
 
   let result: CompletionResult;
@@ -42,10 +50,12 @@ export async function summarizeContent(
 
   if (options.contentType === "podcast") {
     strategy = "podcast";
+    console.log(`[Summarizer] Using podcast strategy`);
     result = await summarizePodcast(content, options);
   } else {
     const chunkStrategy = getChunkingStrategy(tokenCount);
     strategy = chunkStrategy;
+    console.log(`[Summarizer] Using ${chunkStrategy} strategy`);
 
     switch (chunkStrategy) {
       case "short":
