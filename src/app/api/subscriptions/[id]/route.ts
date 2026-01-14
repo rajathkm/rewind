@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
+
+// Demo user ID for development without auth
+const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 const updateSubscriptionSchema = z.object({
   customName: z.string().optional().nullable(),
@@ -18,12 +22,13 @@ export async function GET(
     const supabase = await createClient();
     const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const { data: subscription, error } = await supabase
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
+
+    const { data: subscription, error } = await db
       .from("subscriptions")
       .select(`
         *,
@@ -40,7 +45,7 @@ export async function GET(
         )
       `)
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (error) {
@@ -65,10 +70,11 @@ export async function PATCH(
     const supabase = await createClient();
     const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     const body = await request.json();
     const validatedData = updateSubscriptionSchema.parse(body);
@@ -83,11 +89,11 @@ export async function PATCH(
       updateData.auto_summarize = validatedData.autoSummarize;
     if (validatedData.status) updateData.status = validatedData.status;
 
-    const { data: subscription, error } = await supabase
+    const { data: subscription, error } = await db
       .from("subscriptions")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .select(`
         *,
         content_sources (
@@ -128,33 +134,58 @@ export async function DELETE(
     const supabase = await createClient();
     const { id } = await params;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Use admin client and demo user for development
+    const db = user ? supabase : createAdminClient();
+    const userId = user?.id || DEMO_USER_ID;
 
     // Get source_id before deleting
-    const { data: subscription } = await supabase
+    const { data: subscription } = await db
       .from("subscriptions")
       .select("source_id")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
-    const { error } = await supabase
+    if (!subscription?.source_id) {
+      return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+    }
+
+    const sourceId = subscription.source_id;
+
+    // Delete the subscription first
+    const { error } = await db
       .from("subscriptions")
       .delete()
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Decrement subscriber count
-    if (subscription?.source_id) {
-      await supabase.rpc("decrement_subscriber_count", {
-        source_id: subscription.source_id,
+    // Check if any other subscriptions exist for this source
+    const { count: remainingSubscriptions } = await db
+      .from("subscriptions")
+      .select("id", { count: "exact", head: true })
+      .eq("source_id", sourceId);
+
+    // If no other subscriptions, delete the source (cascades to content_items and summaries)
+    if (remainingSubscriptions === 0) {
+      const { error: sourceDeleteError } = await db
+        .from("content_sources")
+        .delete()
+        .eq("id", sourceId);
+
+      if (sourceDeleteError) {
+        console.error("Error deleting source:", sourceDeleteError);
+        // Don't fail the request - subscription was already deleted
+      }
+    } else {
+      // Just decrement subscriber count if other subscriptions exist
+      await db.rpc("decrement_subscriber_count", {
+        source_id: sourceId,
       });
     }
 
