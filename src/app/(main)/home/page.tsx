@@ -182,6 +182,7 @@ async function RecentContentSection() {
                 publishedAt={item.published_at}
                 hasSummary={!!summary}
                 description={summary?.tldr}
+                mediaUrl={item.audio_url}
               />
             </ContentLink>
           );

@@ -7,6 +7,7 @@ import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { Header } from "./header";
 import { MiniPlayer } from "@/components/audio/mini-player";
+import { AudioProvider } from "@/components/audio/audio-provider";
 import { OfflineIndicator } from "@/components/offline/offline-indicator";
 import { cn } from "@/lib/utils/cn";
 import { useUIStore } from "@/stores/ui-store";
@@ -25,6 +26,9 @@ export function ResponsiveShell({ children }: ResponsiveShellProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Audio Provider - handles actual audio playback */}
+      <AudioProvider />
+
       {/* Offline Indicator */}
       <OfflineIndicator />
 

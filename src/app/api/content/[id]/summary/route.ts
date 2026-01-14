@@ -75,10 +75,11 @@ export async function POST(
         `
         id,
         title,
-        content_text,
+        extracted_text,
         transcript,
         content_type,
         duration_seconds,
+        url,
         content_sources (
           source_type
         )
@@ -91,8 +92,8 @@ export async function POST(
       return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
-    // Get content to summarize
-    const textContent = content.transcript || content.content_text;
+    // Get content to summarize - prefer transcript for audio, otherwise use extracted_text
+    const textContent = content.transcript || content.extracted_text;
     if (!textContent) {
       return NextResponse.json(
         { error: "No content available to summarize" },

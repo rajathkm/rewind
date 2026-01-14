@@ -30,7 +30,9 @@ interface ContentItem {
   imageUrl?: string;
   url?: string;
   mediaUrl?: string;
+  audioUrl?: string;
   durationSeconds?: number;
+  audioDurationSeconds?: number;
   readingTimeMinutes?: number;
   processingStatus?: ProcessingStatus;
   retryCount?: number;
