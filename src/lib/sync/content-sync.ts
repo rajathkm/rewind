@@ -249,7 +249,7 @@ async function processItem(
 
   // Determine content type
   const contentType = determineContentType(item, source.source_type);
-  const isPodcast = contentType === "podcast_episode";
+  const isPodcast = contentType === "episode";
 
   // Extract content from RSS
   let extractedText = "";
@@ -426,14 +426,14 @@ function countWords(text: string): number {
 function determineContentType(
   item: ExtendedItem,
   sourceType: string
-): "article" | "podcast_episode" | "newsletter" {
+): "article" | "episode" | "newsletter_issue" {
   // Check for audio enclosure (podcast)
   if (
     sourceType === "podcast" ||
     (item.enclosure?.type?.startsWith("audio/")) ||
     item.enclosure?.url?.match(/\.(mp3|m4a|wav|ogg)$/i)
   ) {
-    return "podcast_episode";
+    return "episode";
   }
   return "article";
 }

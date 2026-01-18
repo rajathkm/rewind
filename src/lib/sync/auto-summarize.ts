@@ -157,7 +157,7 @@ export async function autoSummarizePendingContent(options: {
         .eq("id", item.id);
 
       // Generate summary
-      const contentType = item.content_type === "podcast_episode" ? "podcast" : "article";
+      const contentType = item.content_type === "episode" ? "podcast" : "article";
       const result = await summarizeContent(item.extracted_text, {
         contentType,
         title: item.title,
@@ -283,7 +283,7 @@ export async function retrySummarization(contentId: string): Promise<{
       .eq("id", contentId);
 
     // Generate summary
-    const contentType = item.content_type === "podcast_episode" ? "podcast" : "article";
+    const contentType = item.content_type === "episode" ? "podcast" : "article";
     const result = await summarizeContent(item.extracted_text, {
       contentType,
       title: item.title,

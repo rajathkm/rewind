@@ -107,9 +107,9 @@ export async function GET(
       contentText: content.content_text,
       excerpt: content.excerpt,
       imageUrl: content.image_url,
-      mediaUrl: content.media_url,
+      mediaUrl: content.audio_url || content.media_url, // Prefer audio_url for podcasts
       mediaType: content.media_type,
-      durationSeconds: content.duration_seconds,
+      durationSeconds: content.audio_duration_seconds || content.duration_seconds,
       transcript: content.transcript,
       publishedAt: content.published_at,
       wordCount: content.word_count,

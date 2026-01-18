@@ -62,7 +62,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
       <div className="flex items-center gap-3 px-4 py-2">
         {/* Cover Art */}
         <Link
-          href={`/content/podcast/${currentEpisode.id}`}
+          href={`/content/${currentEpisode.id}`}
           className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0"
         >
           {currentEpisode.coverUrl ? (
@@ -82,7 +82,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
 
         {/* Episode Info */}
         <Link
-          href={`/content/podcast/${currentEpisode.id}`}
+          href={`/content/${currentEpisode.id}`}
           className="flex-1 min-w-0"
         >
           <p className="text-sm font-medium truncate">
@@ -145,7 +145,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
           asChild
         >
           <Link
-            href={`/content/podcast/${currentEpisode.id}`}
+            href={`/content/${currentEpisode.id}`}
             aria-label="Expand player"
           >
             <ChevronUp className="h-4 w-4" />

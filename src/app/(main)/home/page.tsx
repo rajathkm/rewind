@@ -270,7 +270,7 @@ async function ContinueListeningSection() {
     `)
     .eq("user_id", userId)
     .gt("playback_position", 0)
-    .eq("content.content_type", "podcast_episode")
+    .eq("content.content_type", "episode")
     .eq("is_read", false)
     .order("updated_at", { ascending: false })
     .limit(3);

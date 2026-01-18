@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     // Filter by content type if specified
     if (type && type !== "all") {
       if (type === "podcast") {
-        searchQuery = searchQuery.eq("content_type", "podcast_episode");
+        searchQuery = searchQuery.eq("content_type", "episode");
       } else if (type === "article") {
         searchQuery = searchQuery.in("content_type", ["article", "newsletter_issue"]);
       }

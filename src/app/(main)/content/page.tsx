@@ -15,11 +15,20 @@ import {
   Clock,
   ExternalLink,
   Play,
+  Pause,
   X,
   RefreshCw,
+  Filter,
+  ChevronDown,
+  Headphones,
+  Rss,
+  Mail,
+  Youtube,
 } from "lucide-react";
 import { cn, formatDate, formatReadingTime } from "@/lib/utils";
 import type { SummaryOutput } from "@/lib/summarization/schema";
+import { useAudioStore } from "@/stores/audio-store";
+import type { PodcastEpisode } from "@/types/audio";
 
 interface ContentItem {
   id: string;
@@ -65,6 +74,13 @@ interface FullSummary {
   chapters?: unknown[];
 }
 
+interface SourceInfo {
+  id: string;
+  sourceType: string;
+  title: string;
+  imageUrl?: string;
+}
+
 export default function ContentPage() {
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,11 +88,48 @@ export default function ContentPage() {
   const [selectedSummary, setSelectedSummary] = useState<SummaryOutput | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
 
-  // Fetch content items on mount
+  // Source filtering state
+  const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+
+  // Audio store for podcast playback
+  const { play, pause, resume, isPlaying, currentEpisode } = useAudioStore();
+
+  // Fetch sources on mount
+  useEffect(() => {
+    async function fetchSources() {
+      try {
+        const response = await fetch("/api/subscriptions?status=active");
+        if (response.ok) {
+          const data = await response.json();
+          const sourceList: SourceInfo[] = (data.subscriptions || [])
+            .filter((sub: { source?: SourceInfo }) => sub.source)
+            .map((sub: { source: { id: string; source_type: string; title: string; image_url?: string } }) => ({
+              id: sub.source.id,
+              sourceType: sub.source.source_type,
+              title: sub.source.title,
+              imageUrl: sub.source.image_url,
+            }));
+          setSources(sourceList);
+        }
+      } catch (error) {
+        console.error("Failed to fetch sources:", error);
+      }
+    }
+    fetchSources();
+  }, []);
+
+  // Fetch content items (with optional source filter)
   useEffect(() => {
     async function fetchContent() {
+      setLoading(true);
       try {
-        const response = await fetch("/api/content");
+        const url = new URL("/api/content", window.location.origin);
+        if (selectedSourceId) {
+          url.searchParams.set("sourceId", selectedSourceId);
+        }
+        const response = await fetch(url.toString());
         if (response.ok) {
           const data = await response.json();
           setContentItems(data.items || []);
@@ -88,7 +141,7 @@ export default function ContentPage() {
       }
     }
     fetchContent();
-  }, []);
+  }, [selectedSourceId]);
 
   // Fetch full summary when an item is selected
   useEffect(() => {
@@ -133,6 +186,47 @@ export default function ContentPage() {
   }, [selectedId]);
 
   const selectedItem = contentItems.find((item) => item.id === selectedId);
+  const selectedSource = sources.find((s) => s.id === selectedSourceId);
+
+  // Check if this item is currently playing
+  const isItemPlaying = (itemId: string) => isPlaying && currentEpisode?.id === itemId;
+
+  // Play podcast episode
+  const handlePlayPodcast = (item: ContentItem) => {
+    const mediaUrl = item.audioUrl || item.mediaUrl;
+    if (!mediaUrl) return;
+
+    if (isItemPlaying(item.id)) {
+      pause();
+    } else if (currentEpisode?.id === item.id) {
+      resume();
+    } else {
+      const episode: PodcastEpisode = {
+        id: item.id,
+        podcastId: item.sourceId || "",
+        podcastName: item.sourceTitle || "Unknown",
+        episodeTitle: item.title,
+        coverUrl: item.imageUrl || item.sourceImageUrl || "",
+        audioUrl: mediaUrl,
+        duration: item.durationSeconds || item.audioDurationSeconds || 0,
+      };
+      play(episode);
+    }
+  };
+
+  // Get source icon based on type
+  const getSourceIcon = (sourceType: string) => {
+    switch (sourceType) {
+      case "podcast":
+        return <Headphones className="w-4 h-4" />;
+      case "rss":
+        return <Rss className="w-4 h-4" />;
+      case "newsletter":
+        return <Mail className="w-4 h-4" />;
+      default:
+        return <Filter className="w-4 h-4" />;
+    }
+  };
 
   const getContentType = (item: ContentItem): "article" | "podcast" | "newsletter" => {
     if (item.contentType === "podcast_episode" || item.contentType === "episode") {
@@ -155,7 +249,105 @@ export default function ContentPage() {
           <h1 className="text-xl font-bold">All Content</h1>
           <Badge variant="secondary">{contentItems.length} items</Badge>
         </div>
+
+        {/* Source Filter Dropdown */}
+        <div className="relative">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+            onClick={() => setShowSourceDropdown(!showSourceDropdown)}
+          >
+            {selectedSource ? (
+              <>
+                {selectedSource.imageUrl ? (
+                  <img
+                    src={selectedSource.imageUrl}
+                    alt={selectedSource.title}
+                    className="w-4 h-4 rounded-sm object-cover"
+                  />
+                ) : (
+                  getSourceIcon(selectedSource.sourceType)
+                )}
+                <span className="max-w-[120px] truncate">{selectedSource.title}</span>
+              </>
+            ) : (
+              <>
+                <Filter className="w-4 h-4" />
+                <span>All Sources</span>
+              </>
+            )}
+            <ChevronDown className="w-3 h-3 ml-1" />
+          </Button>
+
+          {showSourceDropdown && (
+            <div className="absolute right-0 top-full mt-1 w-64 bg-card border rounded-lg shadow-lg z-50 py-1 max-h-[300px] overflow-y-auto">
+              {/* All sources option */}
+              <button
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors",
+                  !selectedSourceId && "bg-accent"
+                )}
+                onClick={() => {
+                  setSelectedSourceId(null);
+                  setShowSourceDropdown(false);
+                }}
+              >
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <span className="font-medium">All Sources</span>
+              </button>
+
+              {sources.length > 0 && (
+                <div className="border-t my-1" />
+              )}
+
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors",
+                    selectedSourceId === source.id && "bg-accent"
+                  )}
+                  onClick={() => {
+                    setSelectedSourceId(source.id);
+                    setShowSourceDropdown(false);
+                  }}
+                >
+                  {source.imageUrl ? (
+                    <img
+                      src={source.imageUrl}
+                      alt={source.title}
+                      className="w-5 h-5 rounded-sm object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <span className="flex-shrink-0 text-muted-foreground">
+                      {getSourceIcon(source.sourceType)}
+                    </span>
+                  )}
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-medium truncate">{source.title}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{source.sourceType}</p>
+                  </div>
+                </button>
+              ))}
+
+              {sources.length === 0 && (
+                <p className="px-3 py-2 text-sm text-muted-foreground">
+                  No sources found
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Click outside to close dropdown */}
+      {showSourceDropdown && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowSourceDropdown(false)}
+        />
+      )}
 
       {/* Split pane layout */}
       <div className="flex gap-4 h-[calc(100%-3rem)]">
@@ -213,6 +405,28 @@ export default function ContentPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {/* Play button for podcasts */}
+                {(selectedItem?.contentType === "podcast_episode" || selectedItem?.contentType === "episode") &&
+                  (selectedItem?.audioUrl || selectedItem?.mediaUrl) && (
+                  <Button
+                    variant={isItemPlaying(selectedItem.id) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handlePlayPodcast(selectedItem)}
+                    className="gap-1.5"
+                  >
+                    {isItemPlaying(selectedItem.id) ? (
+                      <>
+                        <Pause className="w-4 h-4" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        Play
+                      </>
+                    )}
+                  </Button>
+                )}
                 {selectedItem?.url && (
                   <Button variant="outline" size="sm" asChild>
                     <a
@@ -232,7 +446,7 @@ export default function ContentPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <Play className="w-4 h-4 mr-1" />
+                      <Youtube className="w-4 h-4 mr-1" />
                       Watch
                     </a>
                   </Button>

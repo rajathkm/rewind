@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
   try {
     // Verify authorization
     const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
+    // Fallback for development - use same default as client-side auto-sync
+    const cronSecret = process.env.CRON_SECRET || "rewind-cron-secret-change-in-production";
 
     // Check for cron secret in header (for Vercel Cron)
     if (authHeader !== `Bearer ${cronSecret}`) {
@@ -86,7 +87,8 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const trigger = url.searchParams.get("trigger");
   const secret = url.searchParams.get("secret");
-  const cronSecret = process.env.CRON_SECRET;
+  // Fallback for development - use same default as client-side auto-sync
+  const cronSecret = process.env.CRON_SECRET || "rewind-cron-secret-change-in-production";
 
   // If trigger=true and secret matches, run sync
   if (trigger === "true" && secret === cronSecret) {

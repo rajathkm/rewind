@@ -26,16 +26,9 @@ export async function GET(request: NextRequest) {
     const savedOnly = searchParams.get("savedOnly") === "true";
     const sourceId = searchParams.get("sourceId");
 
-    // Use the database function for efficient feed retrieval
-    const { data: feedItems, error } = await db.rpc("get_user_feed", {
-      p_user_id: userId,
-      p_limit: limit,
-      p_offset: offset,
-      p_source_type: sourceType,
-      p_unread_only: unreadOnly,
-    });
-
-    if (error) {
+    // Always use direct query to ensure audio URLs are returned for podcasts
+    // The RPC function doesn't return audio_url field
+    {
       // Fall back to direct query if function doesn't exist
       let query = db
         .from("content_items")
@@ -133,32 +126,6 @@ export async function GET(request: NextRequest) {
         hasMore: (items?.length || 0) === limit,
       });
     }
-
-    // Transform RPC results
-    const items = feedItems?.map((item: any) => ({
-      id: item.content_id,
-      contentType: item.source_type === "podcast" ? "episode" : "article",
-      title: item.title,
-      excerpt: item.excerpt,
-      imageUrl: item.image_url,
-      publishedAt: item.published_at,
-      durationSeconds: item.duration_seconds,
-      readingTimeMinutes: item.reading_time_minutes,
-      processingStatus: item.processing_status,
-      retryCount: item.retry_count,
-      sourceId: item.source_id,
-      sourceTitle: item.source_title,
-      sourceType: item.source_type,
-      sourceImageUrl: item.source_image_url,
-      isRead: item.is_read,
-      isSaved: item.is_saved,
-      hasSummary: item.has_summary,
-    }));
-
-    return NextResponse.json({
-      items: items || [],
-      hasMore: (feedItems?.length || 0) === limit,
-    });
   } catch (error) {
     console.error("Error fetching content:", error);
     return NextResponse.json(

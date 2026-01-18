@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { syncSourceById } from "@/lib/sync/content-sync";
 import { z } from "zod";
 
 // Demo user ID for development without auth
@@ -130,6 +131,16 @@ export async function POST(request: NextRequest) {
     await db.rpc("increment_subscriber_count", {
       source_id: validatedData.sourceId,
     });
+
+    // Trigger immediate sync for the newly subscribed source (non-blocking)
+    // This fetches content in the background so the user sees it quickly
+    syncSourceById(validatedData.sourceId)
+      .then((result) => {
+        console.log(`[Subscription] Synced source ${validatedData.sourceId}: ${result.itemsAdded} items added`);
+      })
+      .catch((error) => {
+        console.error(`[Subscription] Failed to sync source ${validatedData.sourceId}:`, error);
+      });
 
     return NextResponse.json({ subscription }, { status: 201 });
   } catch (error) {
