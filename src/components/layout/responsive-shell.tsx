@@ -2,11 +2,12 @@
 
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useAutoSync } from "@/hooks/use-auto-sync";
-import { useMiniPlayerVisible } from "@/stores/audio-store";
+import { useMiniPlayerVisible, useAudioStore } from "@/stores/audio-store";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { Header } from "./header";
 import { MiniPlayer } from "@/components/audio/mini-player";
+import { FullPlayer } from "@/components/audio/full-player";
 import { AudioProvider } from "@/components/audio/audio-provider";
 import { OfflineIndicator } from "@/components/offline/offline-indicator";
 import { cn } from "@/lib/utils/cn";
@@ -20,6 +21,7 @@ export function ResponsiveShell({ children }: ResponsiveShellProps) {
   const isDesktop = useIsDesktop();
   const miniPlayerVisible = useMiniPlayerVisible();
   const { sidebarCollapsed } = useUIStore();
+  const { isFullPlayerOpen, closeFullPlayer } = useAudioStore();
 
   // Auto-sync content in background
   useAutoSync();
@@ -78,6 +80,13 @@ export function ResponsiveShell({ children }: ResponsiveShellProps) {
       {/* Mobile Bottom Navigation */}
       {!isDesktop && (
         <BottomNav className="fixed bottom-0 left-0 right-0 z-50" />
+      )}
+
+      {/* Full Player Overlay */}
+      {isFullPlayerOpen && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <FullPlayer onClose={closeFullPlayer} className="h-full" />
+        </div>
       )}
     </div>
   );

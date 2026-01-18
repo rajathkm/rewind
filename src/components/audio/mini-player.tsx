@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Play, Pause, SkipBack, SkipForward, ChevronUp } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAudioStore } from "@/stores/audio-store";
 import { formatDuration } from "@/lib/utils/format";
@@ -27,6 +27,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
     resume,
     seek,
     setPlaybackRate,
+    openFullPlayer,
   } = useAudioStore();
 
   if (!currentEpisode) return null;
@@ -198,14 +199,10 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          asChild
+          onClick={openFullPlayer}
+          aria-label="Expand player"
         >
-          <Link
-            href={`/content/${currentEpisode.id}`}
-            aria-label="Expand player"
-          >
-            <ChevronUp className="h-4 w-4" />
-          </Link>
+          <Maximize2 className="h-4 w-4" />
         </Button>
       </div>
     </div>

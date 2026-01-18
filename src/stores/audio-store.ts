@@ -21,6 +21,9 @@ interface AudioState {
   sleepTimerMinutes: number | null;
   sleepTimerEndTime: Date | null;
 
+  // UI state
+  isFullPlayerOpen: boolean;
+
   // Actions
   play: (episode: PodcastEpisode) => void;
   pause: () => void;
@@ -39,6 +42,8 @@ interface AudioState {
   clearQueue: () => void;
   setSleepTimer: (minutes: number | null) => void;
   checkSleepTimer: () => boolean;
+  openFullPlayer: () => void;
+  closeFullPlayer: () => void;
 }
 
 export const useAudioStore = create<AudioState>()(
@@ -57,6 +62,7 @@ export const useAudioStore = create<AudioState>()(
       queueIndex: 0,
       sleepTimerMinutes: null,
       sleepTimerEndTime: null,
+      isFullPlayerOpen: false,
 
       // Actions
       play: (episode) =>
@@ -155,6 +161,9 @@ export const useAudioStore = create<AudioState>()(
         }
         return false;
       },
+
+      openFullPlayer: () => set({ isFullPlayerOpen: true }),
+      closeFullPlayer: () => set({ isFullPlayerOpen: false }),
     }),
     {
       name: "rewind-audio-state",
