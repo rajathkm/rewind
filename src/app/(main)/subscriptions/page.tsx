@@ -20,8 +20,24 @@ import {
   Sparkles,
   RefreshCw,
   Loader2,
+  Link as LinkIcon,
+  Mic,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface PodcastSearchResult {
+  id: string;
+  itunesId?: number;
+  title: string;
+  author: string;
+  description: string;
+  artworkUrl: string;
+  feedUrl: string;
+  genre: string;
+  trackCount: number;
+  explicit: boolean;
+}
 
 interface Subscription {
   id: string;
@@ -46,11 +62,18 @@ export default function SubscriptionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "rss" | "podcast" | "newsletter">("all");
   const [isAddingSource, setIsAddingSource] = useState(false);
+  const [addSourceMode, setAddSourceMode] = useState<"url" | "podcast">("url");
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [isValidating, setIsValidating] = useState(false);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Podcast search state
+  const [podcastSearchQuery, setPodcastSearchQuery] = useState("");
+  const [podcastSearchResults, setPodcastSearchResults] = useState<PodcastSearchResult[]>([]);
+  const [isSearchingPodcasts, setIsSearchingPodcasts] = useState(false);
+  const [subscribingPodcastId, setSubscribingPodcastId] = useState<string | null>(null);
 
   // Check URL params for ?add=true
   useEffect(() => {
@@ -217,6 +240,94 @@ export default function SubscriptionsPage() {
     }
   };
 
+  // Podcast search
+  const handlePodcastSearch = async () => {
+    if (!podcastSearchQuery.trim()) return;
+
+    setIsSearchingPodcasts(true);
+    try {
+      const response = await fetch(`/api/podcast/search?q=${encodeURIComponent(podcastSearchQuery)}&limit=10`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setPodcastSearchResults(data.results || []);
+      } else {
+        console.error("Podcast search error:", data.error);
+        setPodcastSearchResults([]);
+      }
+    } catch (error) {
+      console.error("Error searching podcasts:", error);
+      setPodcastSearchResults([]);
+    } finally {
+      setIsSearchingPodcasts(false);
+    }
+  };
+
+  // Subscribe to podcast from search result
+  const handleSubscribeToPodcast = async (podcast: PodcastSearchResult) => {
+    if (!podcast.feedUrl) {
+      alert("This podcast doesn't have a feed URL");
+      return;
+    }
+
+    setSubscribingPodcastId(podcast.id);
+    try {
+      // Create source
+      const sourceRes = await fetch("/api/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: "podcast",
+          feedUrl: podcast.feedUrl,
+          title: podcast.title,
+          description: podcast.description,
+          imageUrl: podcast.artworkUrl,
+        }),
+      });
+
+      const sourceData = await sourceRes.json();
+
+      if (!sourceRes.ok && sourceRes.status !== 409) {
+        alert(sourceData.error || "Failed to create source");
+        return;
+      }
+
+      const sourceId = sourceData.source?.id || sourceData.existingSource?.id;
+
+      if (sourceId) {
+        // Create subscription
+        const subRes = await fetch("/api/subscriptions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceId,
+            autoSummarize: true,
+          }),
+        });
+
+        if (!subRes.ok && subRes.status !== 409) {
+          const subData = await subRes.json();
+          alert(subData.error || "Failed to subscribe");
+          return;
+        }
+
+        // Trigger sync
+        triggerSync(sourceId);
+      }
+
+      // Clear search and close
+      setPodcastSearchQuery("");
+      setPodcastSearchResults([]);
+      setIsAddingSource(false);
+      fetchSubscriptions();
+    } catch (error) {
+      console.error("Error subscribing to podcast:", error);
+      alert("Failed to subscribe to podcast");
+    } finally {
+      setSubscribingPodcastId(null);
+    }
+  };
+
   const triggerSync = async (sourceId?: string) => {
     setIsSyncing(true);
     try {
@@ -376,32 +487,145 @@ export default function SubscriptionsPage() {
       {isAddingSource && (
         <Card className="mb-6 border-primary/20">
           <CardHeader className="py-4">
-            <CardTitle className="text-base">Add New Source</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Enter RSS, Podcast, or website URL..."
-                value={newSourceUrl}
-                onChange={(e) => setNewSourceUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddSource()}
-                autoFocus
-              />
-              <Button onClick={handleAddSource} disabled={isValidating}>
-                {isValidating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              </Button>
-              <Button variant="ghost" onClick={() => setIsAddingSource(false)}>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Add New Source</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setIsAddingSource(false)}>
                 Cancel
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Paste a URL to an RSS feed, podcast feed, or website. We&apos;ll
-              automatically detect the feed and fetch content.
-            </p>
+            {/* Mode Tabs */}
+            <div className="flex gap-2 mt-3">
+              <Button
+                variant={addSourceMode === "url" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setAddSourceMode("url")}
+                className="flex-1"
+              >
+                <LinkIcon className="w-4 h-4 mr-2" />
+                Enter URL
+              </Button>
+              <Button
+                variant={addSourceMode === "podcast" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setAddSourceMode("podcast")}
+                className="flex-1"
+              >
+                <Mic className="w-4 h-4 mr-2" />
+                Search Podcasts
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {addSourceMode === "url" ? (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter RSS, Podcast, or website URL..."
+                    value={newSourceUrl}
+                    onChange={(e) => setNewSourceUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddSource()}
+                    autoFocus
+                  />
+                  <Button onClick={handleAddSource} disabled={isValidating}>
+                    {isValidating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Add"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Paste a URL to an RSS feed, podcast feed, or website. We&apos;ll
+                  automatically detect the feed and fetch content.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Search for podcasts..."
+                    value={podcastSearchQuery}
+                    onChange={(e) => setPodcastSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handlePodcastSearch()}
+                    autoFocus
+                  />
+                  <Button onClick={handlePodcastSearch} disabled={isSearchingPodcasts}>
+                    {isSearchingPodcasts ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Search Results */}
+                {podcastSearchResults.length > 0 && (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {podcastSearchResults.map((podcast) => (
+                      <div
+                        key={podcast.id}
+                        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        {/* Podcast artwork */}
+                        <div className="w-14 h-14 rounded-lg bg-muted flex-shrink-0 overflow-hidden">
+                          {podcast.artworkUrl ? (
+                            <img
+                              src={podcast.artworkUrl}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Headphones className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Podcast info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">{podcast.title}</h4>
+                          <p className="text-sm text-muted-foreground truncate">{podcast.author}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">{podcast.genre}</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {podcast.trackCount} episodes
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subscribe button */}
+                        <Button
+                          size="sm"
+                          onClick={() => handleSubscribeToPodcast(podcast)}
+                          disabled={subscribingPodcastId === podcast.id || !podcast.feedUrl}
+                        >
+                          {subscribingPodcastId === podcast.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {podcastSearchQuery && !isSearchingPodcasts && podcastSearchResults.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No podcasts found. Try a different search term.
+                  </p>
+                )}
+
+                {!podcastSearchQuery && (
+                  <p className="text-sm text-muted-foreground">
+                    Search for podcasts by name, host, or topic. Results are powered by iTunes.
+                  </p>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, Pause, SkipBack, SkipForward, ChevronUp } from "lucide-react";
@@ -7,20 +8,25 @@ import { Button } from "@/components/ui/button";
 import { useAudioStore } from "@/stores/audio-store";
 import { formatDuration } from "@/lib/utils/format";
 import { cn } from "@/lib/utils/cn";
+import { PLAYBACK_RATES, type PlaybackRate } from "@/types/audio";
 
 interface MiniPlayerProps {
   className?: string;
 }
 
 export function MiniPlayer({ className }: MiniPlayerProps) {
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+
   const {
     currentEpisode,
     isPlaying,
     currentTime,
     duration,
+    playbackRate,
     pause,
     resume,
     seek,
+    setPlaybackRate,
   } = useAudioStore();
 
   if (!currentEpisode) return null;
@@ -40,7 +46,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
   const skipBackward = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    seek(Math.max(0, currentTime - 15));
+    seek(Math.max(0, currentTime - 30));
   };
 
   const skipForward = (e: React.MouseEvent) => {
@@ -49,8 +55,17 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
     seek(Math.min(duration, currentTime + 30));
   };
 
+  const handleSpeedChange = (speed: PlaybackRate) => {
+    setPlaybackRate(speed);
+    setShowSpeedMenu(false);
+  };
+
+  const formatSpeed = (speed: PlaybackRate) => {
+    return speed === 1 ? "1x" : `${speed}x`;
+  };
+
   return (
-    <div className={cn("bg-background/95 backdrop-blur-lg border-t", className)}>
+    <div className={cn("bg-background/95 backdrop-blur-lg border-t relative", className)}>
       {/* Progress Bar */}
       <div className="h-1 bg-muted">
         <div
@@ -107,7 +122,7 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
             size="icon"
             className="h-8 w-8 hidden sm:flex"
             onClick={skipBackward}
-            aria-label="Skip back 15 seconds"
+            aria-label="Skip back 30 seconds"
           >
             <SkipBack className="h-4 w-4" />
           </Button>
@@ -135,6 +150,47 @@ export function MiniPlayer({ className }: MiniPlayerProps) {
           >
             <SkipForward className="h-4 w-4" />
           </Button>
+        </div>
+
+        {/* Speed Control */}
+        <div className="relative hidden sm:block">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-8 px-2 text-xs font-medium",
+              playbackRate !== 1 && "text-primary"
+            )}
+            onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+            aria-label="Playback speed"
+          >
+            {formatSpeed(playbackRate)}
+          </Button>
+
+          {/* Speed Menu */}
+          {showSpeedMenu && (
+            <>
+              {/* Backdrop to close menu */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowSpeedMenu(false)}
+              />
+              <div className="absolute bottom-full right-0 mb-2 bg-popover border rounded-lg shadow-lg py-1 z-50 min-w-[80px]">
+                {PLAYBACK_RATES.map((speed) => (
+                  <button
+                    key={speed}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-sm text-left hover:bg-muted transition-colors",
+                      playbackRate === speed && "text-primary font-medium bg-muted"
+                    )}
+                    onClick={() => handleSpeedChange(speed)}
+                  >
+                    {formatSpeed(speed)}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Expand Button */}
